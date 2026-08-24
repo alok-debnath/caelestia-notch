@@ -108,7 +108,10 @@ QtObject {
                     PanelsPage {}
                 }
                 Component {
-                    DashboardPanel {}
+                    // Was the dashboard panel. This shell has no dashboard --
+                    // the calendar and performance views live in the island.
+                    // The slot stays so the sub-page indices below do not shift.
+                    PlaceholderComp {}
                 }
                 Component {
                     TaskbarPanel {}

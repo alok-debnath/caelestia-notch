@@ -15,13 +15,6 @@ PageBase {
 
         NavRow {
             first: true
-            icon: "dashboard"
-            text: qsTr("Dashboard")
-            subtext: Config.dashboard.enabled ? qsTr("Enabled") : qsTr("Disabled")
-            onClicked: root.nState.openSubPage(1)
-        }
-
-        NavRow {
             icon: "dock_to_bottom"
             text: qsTr("Taskbar")
             subtext: Config.bar.persistent ? qsTr("Always visible") : Config.bar.showOnHover ? qsTr("Reveal on hover") : qsTr("Reveal on drag")

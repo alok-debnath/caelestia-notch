@@ -52,7 +52,7 @@ StyledWindow {
             return 0;
 
         const thresholds = [];
-        for (const panel of ["dashboard", "launcher", "session", "sidebar"])
+        for (const panel of ["launcher", "session", "sidebar"])
             if (contentItem.Config[panel].enabled)
                 thresholds.push(contentItem.Config[panel].dragThreshold);
         return Math.max(...thresholds);
@@ -61,7 +61,6 @@ StyledWindow {
     onHasFullscreenChanged: {
         screenState.launcher = false;
         screenState.session = false;
-        screenState.dashboard = false;
         panels.popouts.close();
     }
 
@@ -117,8 +116,6 @@ StyledWindow {
             const conf = root.contentItem.Config;
             if ((s.launcher && conf.launcher.enabled) || (s.session && conf.session.enabled) || (s.sidebar && conf.sidebar.enabled))
                 return true;
-            if (!conf.dashboard.showOnHover && s.dashboard && conf.dashboard.enabled)
-                return true;
             if (panels.popouts.currentName.startsWith("traymenu") && (panels.popouts.current as StackView)?.depth > 1)
                 return true;
             return false;
@@ -128,7 +125,6 @@ StyledWindow {
             root.screenState.launcher = false;
             root.screenState.session = false;
             root.screenState.sidebar = false;
-            root.screenState.dashboard = false;
             panels.popouts.hasCurrent = false;
             bar.closeTray();
         }
@@ -172,13 +168,6 @@ StyledWindow {
             borderRight: root.borderThickness - anchors.margins - root.sdfBorderOffset
             borderTop: root.borderThickness - anchors.margins - root.sdfBorderOffset
             borderBottom: root.borderThickness - anchors.margins - root.sdfBorderOffset
-        }
-
-        PanelBg {
-            id: dashBg
-
-            panel: panels.dashboard
-            deformAmount: 0.1
         }
 
         PanelBg {
@@ -296,9 +285,6 @@ StyledWindow {
             utilities.horizontalStretch: (sidebarBg.rawDeformMatrix.m11 - 1) / 2 + 1
             utilities.deformMatrix: utilsBg.rawDeformMatrix
 
-            dashboard.transform: Matrix4x4 {
-                matrix: dashBg.deformMatrix
-            }
             launcher.transform: Matrix4x4 {
                 matrix: launcherBg.deformMatrix
             }

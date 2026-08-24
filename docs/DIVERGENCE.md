@@ -15,6 +15,41 @@ To see the current diff against a packaged Caelestia:
 diff -rq /etc/xdg/quickshell/caelestia shell
 ```
 
+## The dashboard is removed
+
+Caelestia's top-centre dashboard drawer is gone: `modules/dashboard/` is deleted,
+and with it the drawer's panel, region, blob, hover and drag handling, shortcut
+and `ScreenState` flags.
+
+Its calendar and performance views were the parts worth keeping, so they were
+moved into `modules/island/` and are opened from the notch instead. The calendar
+was decoupled from `ScreenState` on the way — it owns its `viewDate` now, since
+nothing outside it needs the value.
+
+Files touched by the removal, beyond deleting the module:
+
+| File | Change |
+| --- | --- |
+| `components/ScreenState.qml` | dropped `dashboard`, `dashboardTab`, `dashboardDate` |
+| `modules/drawers/Panels.qml` | dropped the `Dashboard.Wrapper` |
+| `modules/drawers/Regions.qml` | dropped its input region |
+| `modules/drawers/ContentWindow.qml` | dropped `dashBg`, its deform transform, and its entries in the fullscreen and drag-mask handling |
+| `modules/drawers/Interactions.qml` | dropped the hover, drag and shortcut-mode paths |
+| `modules/Shortcuts.qml` | dropped the `dashboard` shortcut; `showall` no longer toggles it |
+| `modules/launcher/Wrapper.qml` | no longer subtracts dashboard height |
+| `modules/nexus/` | dropped `DashboardPanel` and its `PanelsPage` row |
+
+`Config.dashboard.*` still exists — it is provided by `Caelestia.Config` in C++,
+and the performance cards still read `Config.dashboard.performance.*` for which
+widgets to show. The config namespace outlives the drawer it was named after.
+The one place this shows is the nexus settings page, which still exposes the
+dashboard update intervals; those drive the ported cards, so they still do
+something.
+
+In `modules/nexus/PageCompRegistry.qml` the dashboard's sub-page slot is filled
+with a `PlaceholderComp` rather than removed, because later entries in that
+`StackPage` are addressed by index from other pages.
+
 ## `shell.qml`
 
 Two lines: `import "modules/island"` and `Island {}`, mounted just before

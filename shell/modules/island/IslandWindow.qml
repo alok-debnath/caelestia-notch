@@ -18,11 +18,22 @@ import qs.services
 StyledWindow {
     id: root
 
-    // Highest priority wins. Everything except Player is transient and returns
-    // to Clock on its own.
+    // What the user has opened. Stays open until closed again.
+    enum Expanded {
+        None,
+        Player,
+        Calendar,
+        Performance
+    }
+
+    // What is actually on screen. Transient states outrank the expanded one: a
+    // notification or a volume change interrupts the calendar, then gives it
+    // back.
     enum Layer {
         Clock,
         Player,
+        Calendar,
+        Performance,
         Osd,
         Notification
     }
@@ -32,21 +43,34 @@ StyledWindow {
     // Mirrored by ContentWindow into the blob group.
     readonly property Item capsule: capsule
 
-    // Player is the only layer the user opens and closes explicitly.
-    property bool playerOpen
+    property int expanded: IslandWindow.Expanded.None
 
     readonly property int layer: {
         if (notifications.current)
             return IslandWindow.Layer.Notification;
         if (osd.showing)
             return IslandWindow.Layer.Osd;
-        if (playerOpen && Players.active)
-            return IslandWindow.Layer.Player;
-        return IslandWindow.Layer.Clock;
+
+        switch (expanded) {
+        case IslandWindow.Expanded.Player:
+            return Players.active ? IslandWindow.Layer.Player : IslandWindow.Layer.Clock;
+        case IslandWindow.Expanded.Calendar:
+            return IslandWindow.Layer.Calendar;
+        case IslandWindow.Expanded.Performance:
+            return IslandWindow.Layer.Performance;
+        default:
+            return IslandWindow.Layer.Clock;
+        }
     }
 
-    function togglePlayer(): void {
-        playerOpen = !playerOpen && !!Players.active;
+    readonly property bool isExpanded: layer !== IslandWindow.Layer.Clock
+
+    function toggle(which: int): void {
+        expanded = expanded === which ? IslandWindow.Expanded.None : which;
+    }
+
+    function close(): void {
+        expanded = IslandWindow.Expanded.None;
     }
 
     name: "island"
@@ -59,12 +83,12 @@ StyledWindow {
     // not read it. A plain constant is enough for the slack below the capsule.
     implicitHeight: capsule.y + capsule.implicitHeight + IslandTokens.verticalPadding * 2
 
-    // Reserve only the resting height, so windows do not jump every time the
-    // island expands for a notification.
+    // Reserve only the resting height, so windows do not move every time the
+    // island expands.
     exclusiveZone: IslandTokens.restingHeight
 
-    // Everything outside the capsule is click-through: the island covers the
-    // full width of the screen but is only actually there in the middle.
+    // Everything outside the capsule is click-through: the island spans the full
+    // width of the screen but is only actually there in the middle.
     mask: Region {
         item: capsule
     }
@@ -72,9 +96,10 @@ StyledWindow {
     Item {
         id: capsule
 
-        // The blob is a rounded rect, so the capsule exposes the radius it
-        // should be drawn with rather than painting one itself.
-        readonly property real radius: root.layer === IslandWindow.Layer.Clock ? height / 2 : Tokens.rounding.large
+        // The blob is a rounded rect, so the capsule publishes the radius it
+        // should be drawn with rather than painting one itself. At rest it is a
+        // pill; expanded it takes the shell's panel rounding.
+        readonly property real radius: root.isExpanded ? Tokens.rounding.large : height / 2
 
         anchors.horizontalCenter: parent.horizontalCenter
 
@@ -85,15 +110,32 @@ StyledWindow {
         height: implicitHeight
         clip: true
 
+        // The morph. OutQuint over IslandTokens.morphDuration: quick to start,
+        // with a long settle, which is what keeps the notch from reading as a
+        // popup appearing.
         Behavior on implicitWidth {
-            Anim {
-                type: Anim.EmphasizedLarge
+            NumberAnimation {
+                duration: IslandTokens.morphDuration
+                easing.type: Easing.OutQuint
             }
         }
 
         Behavior on implicitHeight {
-            Anim {
-                type: Anim.EmphasizedLarge
+            NumberAnimation {
+                duration: IslandTokens.morphDuration
+                easing.type: Easing.OutQuint
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: event => {
+                if (event.button === Qt.RightButton)
+                    root.toggle(IslandWindow.Expanded.Performance);
+                else
+                    root.toggle(IslandWindow.Expanded.Calendar);
             }
         }
 
@@ -110,6 +152,10 @@ StyledWindow {
                     return osdLayer;
                 case IslandWindow.Layer.Player:
                     return playerLayer;
+                case IslandWindow.Layer.Calendar:
+                    return calendarLayer;
+                case IslandWindow.Layer.Performance:
+                    return performanceLayer;
                 default:
                     return clockLayer;
                 }
@@ -127,15 +173,16 @@ StyledWindow {
             }
 
             Behavior on opacity {
-                Anim {
-                    type: Anim.FastEffects
+                NumberAnimation {
+                    duration: IslandTokens.contentFadeDuration
+                    easing.type: Easing.OutQuad
                 }
             }
 
             Timer {
                 id: fadeIn
 
-                interval: Tokens.anim.durations.small
+                interval: IslandTokens.contentFadeDuration
                 onTriggered: content.opacity = 1
             }
         }
@@ -151,6 +198,18 @@ StyledWindow {
         id: playerLayer
 
         PlayerLayer {}
+    }
+
+    Component {
+        id: calendarLayer
+
+        CalendarLayer {}
+    }
+
+    Component {
+        id: performanceLayer
+
+        PerformanceLayer {}
     }
 
     Component {

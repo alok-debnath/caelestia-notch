@@ -22,15 +22,19 @@ Scope {
 
     IpcHandler {
         function togglePlayer(): void {
-            root.forActiveWindow(w => w.togglePlayer());
+            root.forActiveWindow(w => w.toggle(IslandWindow.Expanded.Player));
         }
 
-        function showPlayer(): void {
-            root.forActiveWindow(w => w.playerOpen = true);
+        function toggleCalendar(): void {
+            root.forActiveWindow(w => w.toggle(IslandWindow.Expanded.Calendar));
         }
 
-        function hidePlayer(): void {
-            root.forActiveWindow(w => w.playerOpen = false);
+        function togglePerformance(): void {
+            root.forActiveWindow(w => w.toggle(IslandWindow.Expanded.Performance));
+        }
+
+        function close(): void {
+            root.forActiveWindow(w => w.close());
         }
 
         target: "island"

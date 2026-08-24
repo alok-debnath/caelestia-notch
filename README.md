@@ -11,8 +11,12 @@ Built on Fedora 44 + Hyprland + Quickshell 0.3.1.
 ## What the notch is
 
 A notch that grows out of the top border as one continuous surface, carrying the
-clock at rest and morphing to show notifications, volume, microphone, brightness
-and the current track.
+clock at rest and morphing to show notifications, volume, microphone, brightness,
+the current track, a calendar and system resources.
+
+**There is no dashboard.** Caelestia's top-centre drawer is removed — its
+calendar and performance views are ported into the notch, which is where they
+belong once the notch is there at all.
 
 It is drawn by Caelestia's own signed-distance-field blob renderer — the same
 one that draws the bar and drawers — so it fuses into the border with concave
@@ -83,16 +87,25 @@ You still want `caelestia-shell` installed for its Quickshell dependency and
 ## Usage
 
 The notch shows the clock at rest and takes over on its own for notifications
-and volume/microphone/brightness. The only thing it needs to be told is the
-player:
+and volume/microphone/brightness. The expanded views are opened by click or IPC:
+
+| | |
+| --- | --- |
+| **Left click the notch** | calendar |
+| **Right click the notch** | system resources |
 
 ```sh
+qs ipc -c caelestia call island toggleCalendar
+qs ipc -c caelestia call island togglePerformance
 qs ipc -c caelestia call island togglePlayer
-qs ipc -c caelestia call island showPlayer
-qs ipc -c caelestia call island hidePlayer
+qs ipc -c caelestia call island close
 ```
 
-Bind `togglePlayer` in `~/.config/hypr/hypr-user.lua` if you want it on a key.
+Bind any of those in `~/.config/hypr/hypr-user.lua` if you want them on keys.
+
+A notification or a volume change interrupts whatever is expanded and hands it
+back afterwards — the expanded view is a state the user set, transient layers
+only borrow the notch.
 
 ## Layout
 
@@ -101,7 +114,7 @@ shell/
 ├── shell.qml
 ├── modules/
 │   ├── island/       the notch
-│   ├── bar/ drawers/ dashboard/ launcher/ lock/ …
+│   ├── bar/ drawers/ launcher/ lock/ sidebar/ …
 │   ├── notifications/  popups collapsed — the notch renders them
 │   └── …
 ├── services/         Notifs Audio Brightness Players Colours …
@@ -111,23 +124,25 @@ scripts/              install, restart
 docs/                 architecture, divergence from Caelestia
 ```
 
-The island module is nine files:
+The island module:
 
 | File | Role |
 | --- | --- |
 | `Island.qml` | one window per screen, IPC |
 | `IslandWindow.qml` | layer priority, the morphing capsule |
-| `IslandTokens.qml` | measurements |
+| `IslandTokens.qml` | measurements and morph timing |
 | `OsdWatcher.qml` | turns Audio/Brightness changes into a transient layer |
 | `NotificationQueue.qml` | feeds one notification at a time from `Notifs` |
-| `ClockLayer.qml` `OsdLayer.qml` `NotificationLayer.qml` `PlayerLayer.qml` | the layers |
+| `ClockLayer.qml` `OsdLayer.qml` `NotificationLayer.qml` `PlayerLayer.qml` | the transient and player layers |
+| `CalendarLayer.qml` `Calendar.qml` | the calendar, ported from the dashboard |
+| `PerformanceLayer.qml` `Performance.qml` `performance/` | system resources, ported from the dashboard |
 | `ProgressRing.qml` | the level ring |
 
 ## Divergence from Caelestia
 
-Four files outside `modules/island/` differ from upstream Caelestia, all of them
-to make room for the notch. They are listed with rationale in
-[docs/DIVERGENCE.md](docs/DIVERGENCE.md).
+Caelestia's dashboard is removed and its calendar and performance views live in
+the island now; a handful of other files changed to make room for the notch.
+All of it is listed with rationale in [docs/DIVERGENCE.md](docs/DIVERGENCE.md).
 
 ## Credits and license
 
