@@ -20,7 +20,14 @@ QtObject {
 
     property Brightness.Monitor monitor
 
-    readonly property bool showing: hideTimer.running
+    // A panel the user opened is not interrupted by a volume key.
+    property bool blocked
+
+    readonly property bool showing: hideTimer.running && !blocked
+
+    // Whether this reading has a level to draw. A mute is an icon on its own,
+    // and the capsule stays at resting width for it.
+    readonly property bool hasLevel: !muted
     property int kind: OsdWatcher.Kind.Volume
     property real value
     property bool muted
@@ -30,7 +37,7 @@ QtObject {
     property bool ready
 
     function trigger(newKind: int, newValue: real, newMuted: bool): void {
-        if (!ready)
+        if (!ready || blocked)
             return;
 
         kind = newKind;
@@ -46,7 +53,7 @@ QtObject {
     }
 
     readonly property Timer hideTimer: Timer {
-        interval: IslandTokens.osdHideDelay
+        interval: IslandTokens.splitHideDelay
     }
 
     readonly property Connections audioConn: Connections {

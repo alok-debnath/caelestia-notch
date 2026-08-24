@@ -1,20 +1,22 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Layouts
 import Caelestia.Config
 import qs.components
 import qs.services
 import qs.utils
 
-// Volume, microphone and brightness feedback: an icon, a percentage, and a ring
-// showing the level.
-Item {
+// Volume, microphone and brightness: Tide's split layout -- the icon and the
+// figure held left, the ring held right, with the capsule stretched between
+// them. Anything without a level (a mute, a lock key) is the icon alone in a
+// resting-width capsule.
+SlidingLayer {
     id: root
 
     required property int kind
     required property real value
     required property bool muted
+    required property bool hasLevel
 
     readonly property string icon: {
         switch (kind) {
@@ -27,35 +29,44 @@ Item {
         }
     }
 
-    implicitWidth: layout.implicitWidth + IslandTokens.horizontalPadding * 2
-    implicitHeight: layout.implicitHeight + IslandTokens.verticalPadding * 2
-
-    RowLayout {
-        id: layout
-
-        anchors.centerIn: parent
-        spacing: IslandTokens.contentSpacing
+    Row {
+        anchors.left: parent.left
+        anchors.leftMargin: IslandTokens.horizontalPadding * 1.125
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: IslandTokens.contentSpacing * 2
+        visible: root.hasLevel
 
         MaterialIcon {
+            anchors.verticalCenter: parent.verticalCenter
+
             text: root.icon
             color: Colours.palette.m3onSurface
             fontStyle: Tokens.font.icon.builders.medium.build()
         }
 
-        StyledText {
+        IslandText {
+            anchors.verticalCenter: parent.verticalCenter
+
+            hero: true
             text: `${Math.round(root.value * 100)}%`
-            font: Tokens.font.body.small
-            color: Colours.palette.m3onSurface
         }
+    }
 
-        // A little breathing room before the ring, which reads as a separate
-        // element rather than part of the label.
-        Item {
-            implicitWidth: IslandTokens.contentSpacing
-        }
+    ProgressRing {
+        anchors.right: parent.right
+        anchors.rightMargin: IslandTokens.horizontalPadding
+        anchors.verticalCenter: parent.verticalCenter
 
-        ProgressRing {
-            value: root.value
-        }
+        value: root.value
+        visible: root.hasLevel
+    }
+
+    MaterialIcon {
+        anchors.centerIn: parent
+
+        text: root.icon
+        color: Colours.palette.m3onSurface
+        fontStyle: Tokens.font.icon.builders.medium.build()
+        visible: !root.hasLevel
     }
 }

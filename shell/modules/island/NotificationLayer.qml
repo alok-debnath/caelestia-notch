@@ -16,21 +16,36 @@ import qs.utils
 // All of that comes from NotifData, because Caelestia is the notification
 // server and hands over the whole notification rather than a summary scraped
 // off the session bus.
-Item {
+//
+// The size is published rather than taken: the capsule asks this layer how wide
+// and tall it wants to be and morphs to that, so the content lays out at its
+// preferred width and never at whatever the capsule happens to be mid-morph.
+SlidingLayer {
     id: root
 
     required property NotifData notif
 
+    property real maximumWidth: IslandTokens.notifMinWidth
+
     readonly property bool hasImage: (notif?.image.length ?? 0) > 0
     readonly property bool isCritical: notif?.urgency === NotificationUrgency.Critical
 
-    implicitWidth: Math.min(IslandTokens.maxWidth, layout.implicitWidth + IslandTokens.horizontalPadding * 2)
-    implicitHeight: layout.implicitHeight + IslandTokens.verticalPadding * 2
+    readonly property real preferredWidth: Math.max(IslandTokens.notifMinWidth, Math.min(maximumWidth, metrics.advanceWidth + IslandTokens.artSize + IslandTokens.horizontalPadding * 4))
+
+    implicitWidth: preferredWidth
+    implicitHeight: Math.max(IslandTokens.notifMinHeight, layout.implicitHeight + IslandTokens.verticalPadding * 2)
+
+    readonly property TextMetrics metrics: TextMetrics {
+        font: summary.font
+        text: (root.notif?.summary ?? "") + " " + (root.notif?.body ?? "")
+    }
 
     RowLayout {
         id: layout
 
         anchors.centerIn: parent
+
+        width: root.preferredWidth - IslandTokens.horizontalPadding * 2
         spacing: IslandTokens.contentSpacing * 2
 
         Loader {
@@ -44,21 +59,21 @@ Item {
             Layout.fillWidth: true
             spacing: 0
 
-            StyledText {
+            IslandText {
+                id: summary
+
                 Layout.fillWidth: true
 
                 text: root.notif?.summary ?? ""
-                font: Tokens.font.body.small
                 color: root.isCritical ? Colours.palette.m3error : Colours.palette.m3onSurface
                 elide: Text.ElideRight
             }
 
-            StyledText {
+            IslandText {
                 Layout.fillWidth: true
 
+                dim: true
                 text: root.notif?.body ?? ""
-                font: Tokens.font.body.small
-                color: Colours.palette.m3onSurfaceVariant
                 elide: Text.ElideRight
                 maximumLineCount: 2
                 wrapMode: Text.Wrap
@@ -101,8 +116,8 @@ Item {
         id: imageIcon
 
         StyledClippingRect {
-            implicitWidth: IslandTokens.iconSize * 2
-            implicitHeight: IslandTokens.iconSize * 2
+            implicitWidth: IslandTokens.smallArtSize
+            implicitHeight: IslandTokens.smallArtSize
             radius: Tokens.rounding.full
             color: root.isCritical ? Colours.palette.m3error : Colours.palette.m3secondaryContainer
 
@@ -111,8 +126,8 @@ Item {
 
                 source: Qt.resolvedUrl(root.notif?.image ?? "")
                 fillMode: Image.PreserveAspectCrop
-                sourceSize.width: IslandTokens.iconSize * 2
-                sourceSize.height: IslandTokens.iconSize * 2
+                sourceSize.width: IslandTokens.artSize
+                sourceSize.height: IslandTokens.artSize
                 cache: false
                 asynchronous: true
             }

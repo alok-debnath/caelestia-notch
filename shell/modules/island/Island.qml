@@ -22,15 +22,28 @@ Scope {
 
     IpcHandler {
         function togglePlayer(): void {
-            root.forActiveWindow(w => w.toggle(IslandWindow.Expanded.Player));
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Player));
         }
 
         function toggleCalendar(): void {
-            root.forActiveWindow(w => w.toggle(IslandWindow.Expanded.Calendar));
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Calendar));
         }
 
         function togglePerformance(): void {
-            root.forActiveWindow(w => w.toggle(IslandWindow.Expanded.Performance));
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Performance));
+        }
+
+        function toggleControlCenter(): void {
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Control));
+        }
+
+        // The resting pages, for anyone who would rather bind a key than swipe.
+        function nextPage(): void {
+            root.forActiveWindow(w => w.settleSwipe(1));
+        }
+
+        function previousPage(): void {
+            root.forActiveWindow(w => w.settleSwipe(-1));
         }
 
         function close(): void {

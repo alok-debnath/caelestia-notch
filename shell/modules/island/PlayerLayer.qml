@@ -8,87 +8,177 @@ import qs.components
 import qs.components.controls
 import qs.services
 
-// Now playing: album art, track, and transport controls, driven by Caelestia's
-// Players service rather than a second MPRIS client of the island's own.
-Item {
+// Now playing, at Tide's expanded size: 410 by 165, 20px margins, a 60px cover,
+// the scrubber, and the transport centred under it.
+//
+// This is what hovering the notch opens, so the island's other views hang off
+// the corner of it rather than off a click on the capsule.
+SlidingLayer {
     id: root
+
+    required property var island
 
     readonly property MprisPlayer player: Players.active
 
-    implicitWidth: Math.min(IslandTokens.maxWidth, layout.implicitWidth + IslandTokens.horizontalPadding * 2)
-    implicitHeight: layout.implicitHeight + IslandTokens.verticalPadding * 2
+    function formatTime(seconds: real): string {
+        if (!isFinite(seconds) || seconds <= 0)
+            return "0:00";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s < 10 ? "0" : ""}${s}`;
+    }
 
-    RowLayout {
-        id: layout
+    // MPRIS position does not tick on its own; the shell has to ask.
+    readonly property Timer positionTimer: Timer {
+        running: root.player?.isPlaying ?? false
+        repeat: true
+        interval: 1000
+        onTriggered: root.player?.positionChanged()
+    }
 
-        anchors.centerIn: parent
-        spacing: IslandTokens.contentSpacing * 2
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: Tokens.padding.extraLarge
+        spacing: Tokens.spacing.large
 
-        StyledClippingRect {
-            Layout.alignment: Qt.AlignVCenter
-
-            implicitWidth: IslandTokens.artSize
-            implicitHeight: IslandTokens.artSize
-            radius: Tokens.rounding.small
-            color: Colours.palette.m3surfaceContainerHigh
-
-            Image {
-                anchors.fill: parent
-
-                source: Players.getArtUrl(root.player)
-                fillMode: Image.PreserveAspectCrop
-                sourceSize.width: IslandTokens.artSize
-                sourceSize.height: IslandTokens.artSize
-                asynchronous: true
-                visible: status === Image.Ready
-            }
-        }
-
-        ColumnLayout {
+        RowLayout {
             Layout.fillWidth: true
-            spacing: 0
+            spacing: Tokens.spacing.large
 
-            StyledText {
-                Layout.fillWidth: true
+            StyledClippingRect {
+                implicitWidth: 60
+                implicitHeight: 60
+                radius: Tokens.rounding.large
+                color: Colours.palette.m3surfaceContainerHigh
 
-                animate: true
-                text: root.player?.trackTitle || qsTr("Nothing playing")
-                font: Tokens.font.body.small
-                color: Colours.palette.m3onSurface
-                elide: Text.ElideRight
+                Image {
+                    anchors.fill: parent
+
+                    source: Players.getArtUrl(root.player)
+                    fillMode: Image.PreserveAspectCrop
+                    sourceSize.width: 120
+                    sourceSize.height: 120
+                    asynchronous: true
+                    visible: status === Image.Ready
+                }
+
+                MaterialIcon {
+                    anchors.centerIn: parent
+
+                    text: "music_note"
+                    color: Colours.palette.m3onSurfaceVariant
+                    fontStyle: Tokens.font.icon.builders.large.build()
+                    visible: !Players.getArtUrl(root.player)
+                }
             }
 
-            StyledText {
+            ColumnLayout {
                 Layout.fillWidth: true
+                spacing: Tokens.spacing.extraSmall
 
-                animate: true
-                text: root.player?.trackArtist ?? ""
-                font: Tokens.font.body.small
-                color: Colours.palette.m3onSurfaceVariant
-                elide: Text.ElideRight
-                visible: text.length > 0
+                IslandText {
+                    Layout.fillWidth: true
+
+                    animate: true
+                    text: root.player?.trackTitle || qsTr("Nothing playing")
+                    elide: Text.ElideRight
+                }
+
+                IslandText {
+                    Layout.fillWidth: true
+
+                    dim: true
+                    animate: true
+                    text: root.player?.trackArtist || qsTr("Try playing something")
+                    elide: Text.ElideRight
+                }
+            }
+
+            // The island's other views, kept out of the way in the corner. The
+            // capsule itself stays click-free.
+            IslandActions {
+                Layout.alignment: Qt.AlignTop
+
+                island: root.island
             }
         }
 
         RowLayout {
-            Layout.alignment: Qt.AlignVCenter
-            spacing: 0
+            Layout.fillWidth: true
+            spacing: Tokens.spacing.small
+
+            IslandText {
+                dim: true
+                font.pixelSize: IslandTokens.bodyPixelSize - 4
+                text: root.formatTime(root.player?.position ?? 0)
+            }
+
+            StyledRect {
+                Layout.fillWidth: true
+
+                implicitHeight: 6
+                radius: Tokens.rounding.full
+                color: Colours.palette.m3surfaceContainerHighest
+
+                StyledRect {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+
+                    implicitWidth: parent.width * Math.max(0, Math.min(1, (root.player?.length ?? 0) > 0 ? (root.player?.position ?? 0) / root.player.length : 0))
+                    radius: Tokens.rounding.full
+                    color: Colours.palette.m3primary
+
+                    Behavior on implicitWidth {
+                        NumberAnimation {
+                            duration: 500
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: root.player?.canSeek ?? false
+                    onClicked: event => {
+                        if (root.player?.length > 0)
+                            root.player.position = root.player.length * (event.x / width);
+                    }
+                }
+            }
+
+            IslandText {
+                dim: true
+                font.pixelSize: IslandTokens.bodyPixelSize - 4
+                text: root.formatTime(root.player?.length ?? 0)
+            }
+        }
+
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: Tokens.spacing.extraLarge
 
             IconButton {
                 icon: "skip_previous"
-                enabled: root.player?.canGoPrevious ?? false
+                type: IconButton.Text
+                font: Tokens.font.icon.large
+                disabled: !(root.player?.canGoPrevious ?? false)
                 onClicked: root.player?.previous()
             }
 
             IconButton {
                 icon: root.player?.isPlaying ? "pause" : "play_arrow"
-                enabled: root.player?.canTogglePlaying ?? false
+                type: IconButton.Text
+                font: Tokens.font.icon.large
+                disabled: !(root.player?.canTogglePlaying ?? false)
                 onClicked: root.player?.togglePlaying()
             }
 
             IconButton {
                 icon: "skip_next"
-                enabled: root.player?.canGoNext ?? false
+                type: IconButton.Text
+                font: Tokens.font.icon.large
+                disabled: !(root.player?.canGoNext ?? false)
                 onClicked: root.player?.next()
             }
         }

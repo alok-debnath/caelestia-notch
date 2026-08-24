@@ -40,7 +40,7 @@ QtObject {
                 return;
 
             root.current = newest;
-            holdTimer.interval = newest.expireTimeout;
+            holdTimer.interval = newest.expireTimeout > 0 ? newest.expireTimeout : IslandTokens.notifHideDelay;
             holdTimer.restart();
         }
     }
