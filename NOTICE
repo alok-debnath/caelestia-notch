@@ -1,0 +1,32 @@
+# Attribution
+
+This shell is a derivative work of two GPL-3.0 projects.
+
+## Caelestia
+
+https://github.com/caelestia-dots/shell — Copyright (c) soramanew, GPL-3.0.
+
+The shell tree under `shell/` originates from Caelestia and is carried here in
+full: the bar, drawers, dashboard, launcher, lock screen, session menu, sidebar,
+utilities, background, services, components and utils are Caelestia's work.
+Changes made in this repo are described in `docs/DIVERGENCE.md`.
+
+## Tide Island
+
+https://github.com/enhaoswen/Tide-island — Copyright (c) enhaoswen, GPL-3.0.
+
+`shell/modules/island/` is a reimplementation of Tide Island's Dynamic Island
+for Caelestia. It contains no code from Tide Island: the layer set, the
+priority ordering between them and the morphing-capsule idea come from that
+project, but every line here is written against Caelestia's own services and
+components. The C++ backend Tide ships (`IslandBackend`) has no counterpart
+here and is not required.
+
+If you want the original, standalone Dynamic Island, install Tide Island
+itself — it is a complete shell in its own right and does considerably more
+than this module does.
+
+## License
+
+This work is distributed under the GNU General Public License version 3, the
+same license as both projects above. See `LICENSE`.
