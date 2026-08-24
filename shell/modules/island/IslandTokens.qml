@@ -41,9 +41,12 @@ QtObject {
     readonly property real controlWidth: 420
     readonly property real controlHeight: 352
     readonly property real panelWidth: 410
+    readonly property real notifCenterMaxHeight: 420
+    readonly property real notifCenterListHeight: 300
     readonly property real widePanelWidth: 470
     readonly property real shelfWidth: 1100
     readonly property real shelfHeight: 260
+    readonly property real shelfCardWidth: 130
 
     // -- Corner radii -----------------------------------------------------
     readonly property real restingRadius: restingHeight / 2

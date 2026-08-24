@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.modules.island.overview
 import qs.services
 
 // One notch per screen.
@@ -31,6 +32,18 @@ Scope {
 
         function togglePerformance(): void {
             root.forActiveWindow(w => w.openPanel(IslandWindow.State.Performance));
+        }
+
+        function toggleNotifications(): void {
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.NotifCenter));
+        }
+
+        function overview(): void {
+            OverviewState.toggle();
+        }
+
+        function toggleShelf(): void {
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Shelf));
         }
 
         function toggleControlCenter(): void {

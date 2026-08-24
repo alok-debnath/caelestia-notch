@@ -32,7 +32,9 @@ StyledWindow {
         Player,       // panel: now playing
         Calendar,     // panel: calendar
         Performance,  // panel: system resources
-        Control       // panel: control centre
+        Control,      // panel: control centre
+        NotifCenter,  // panel: notification history
+        Shelf         // panel: the file shelf
     }
 
     readonly property Brightness.Monitor monitor: Brightness.getMonitorForScreen(root.screen)
@@ -51,6 +53,9 @@ StyledWindow {
     // on the way somewhere else must not open it.
     property bool hoverExpanded
 
+    // A file is being dragged over the notch.
+    property bool dropping
+
     // -1 (fully on the left page) .. 1 (fully on the right page) while dragging.
     property real swipeProgress: 0
     readonly property bool swiping: swipeHandler.active
@@ -58,6 +63,10 @@ StyledWindow {
     readonly property bool hasPanel: panel !== IslandWindow.State.Normal
 
     readonly property int islandState: {
+        // A file being dragged over the notch outranks everything: the shelf
+        // has to be open and wide before the drop lands.
+        if (dropping)
+            return IslandWindow.State.Shelf;
         if (hasPanel)
             return panel;
         if (notifications.current && IslandConfig.notifications)
@@ -113,6 +122,10 @@ StyledWindow {
             return IslandTokens.widePanelWidth;
         case IslandWindow.State.Control:
             return IslandTokens.controlWidth;
+        case IslandWindow.State.NotifCenter:
+            return IslandTokens.panelWidth;
+        case IslandWindow.State.Shelf:
+            return Math.min(root.width - IslandTokens.swipeSideMargin, IslandTokens.shelfWidth);
         case IslandWindow.State.Custom:
             return Math.max(IslandTokens.swipeMinWidth, Math.min(root.width - IslandTokens.swipeSideMargin, customLoader.item?.preferredWidth ?? 0));
         case IslandWindow.State.Lyrics:
@@ -134,6 +147,10 @@ StyledWindow {
             return performanceLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
         case IslandWindow.State.Control:
             return IslandTokens.controlHeight;
+        case IslandWindow.State.NotifCenter:
+            return notifCenterLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
+        case IslandWindow.State.Shelf:
+            return IslandTokens.shelfHeight;
         default:
             return IslandTokens.restingHeight;
         }
@@ -148,6 +165,8 @@ StyledWindow {
         case IslandWindow.State.Calendar:
         case IslandWindow.State.Performance:
         case IslandWindow.State.Control:
+        case IslandWindow.State.NotifCenter:
+        case IslandWindow.State.Shelf:
             return IslandTokens.panelRadius;
         default:
             return IslandTokens.restingRadius;
@@ -426,6 +445,50 @@ StyledWindow {
             visible: active
 
             sourceComponent: PerformanceLayer {
+                island: root
+            }
+        }
+
+        // Dropping a file on the notch puts it on the shelf. The drop target is
+        // the capsule, which is small at rest -- so the notch opens the shelf
+        // as soon as a drag enters it, and the target grows with it.
+        DropArea {
+            anchors.fill: parent
+
+            keys: ["text/uri-list"]
+
+            onEntered: root.dropping = true
+            onExited: root.dropping = false
+            onDropped: drop => {
+                root.dropping = false;
+                if (drop.hasUrls) {
+                    FileShelf.addAll(drop.urls);
+                    root.panel = IslandWindow.State.Shelf;
+                }
+                drop.accept();
+            }
+        }
+
+        Loader {
+            id: shelfLoader
+
+            anchors.fill: parent
+            active: root.islandState === IslandWindow.State.Shelf
+            visible: active
+
+            sourceComponent: ShelfLayer {
+                island: root
+            }
+        }
+
+        Loader {
+            id: notifCenterLoader
+
+            anchors.fill: parent
+            active: root.islandState === IslandWindow.State.NotifCenter
+            visible: active
+
+            sourceComponent: NotificationCenterLayer {
                 island: root
             }
         }
