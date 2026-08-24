@@ -142,6 +142,12 @@ QtObject {
                 Component {
                     BarClock {}
                 }
+
+                // Appended rather than slotted in beside the other panels:
+                // the taskbar sub-pages above are addressed by index.
+                Component {
+                    IslandPanel {}
+                }
             }
         },
         Component {

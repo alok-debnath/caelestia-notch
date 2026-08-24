@@ -1,5 +1,6 @@
 import QtQuick.Layouts
 import Caelestia.Config
+import qs.modules.island
 import qs.modules.nexus.common
 
 PageBase {
@@ -36,11 +37,18 @@ PageBase {
         }
 
         NavRow {
-            last: true
             icon: "construction"
             text: qsTr("Utilities")
             subtext: Config.utilities.enabled ? qsTr("Enabled") : qsTr("Disabled")
             onClicked: root.nState.openSubPage(5)
+        }
+
+        NavRow {
+            last: true
+            icon: "sensors"
+            text: qsTr("Island")
+            subtext: IslandConfig.hoverAction === IslandConfig.HoverAction.None ? qsTr("Hover does nothing") : IslandConfig.hoverAction === IslandConfig.HoverAction.Control ? qsTr("Hover opens the control centre") : qsTr("Hover opens now playing")
+            onClicked: root.nState.openSubPage(11)
         }
     }
 }

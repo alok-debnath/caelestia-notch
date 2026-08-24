@@ -40,8 +40,27 @@ QtObject {
     // every one of them the moment the shell starts.
     property bool ready
 
+    function enabled(kind: int): bool {
+        switch (kind) {
+        case EventWatcher.Kind.Workspace:
+            return IslandConfig.announceWorkspaces;
+        case EventWatcher.Kind.Lock:
+            return IslandConfig.announceLockKeys;
+        case EventWatcher.Kind.Power:
+            return IslandConfig.announcePower;
+        case EventWatcher.Kind.Bluetooth:
+            return IslandConfig.announceBluetooth;
+        case EventWatcher.Kind.Recording:
+            return IslandConfig.announceRecording;
+        case EventWatcher.Kind.Media:
+            return IslandConfig.announceMedia;
+        default:
+            return IslandConfig.announceToggles;
+        }
+    }
+
     function trigger(newKind: int, newIcon: string, newTitle: string, newDetail: string): void {
-        if (!ready || blocked)
+        if (!ready || blocked || !enabled(newKind))
             return;
 
         kind = newKind;

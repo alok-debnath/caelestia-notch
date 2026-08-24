@@ -60,14 +60,14 @@ StyledWindow {
     readonly property int islandState: {
         if (hasPanel)
             return panel;
-        if (notifications.current)
+        if (notifications.current && IslandConfig.notifications)
             return IslandWindow.State.Notification;
         if (events.showing)
             return IslandWindow.State.Long;
-        if (osd.showing)
+        if (osd.showing && IslandConfig.osd)
             return IslandWindow.State.Split;
         if (hoverExpanded)
-            return IslandWindow.State.Player;
+            return IslandConfig.hoverAction === IslandConfig.HoverAction.Control ? IslandWindow.State.Control : IslandWindow.State.Player;
         return resting;
     }
 
@@ -80,6 +80,9 @@ StyledWindow {
     // The resting pages sit side by side: the date preview, the clock, and
     // whatever is playing. `pageOffset` is how far a page is from the middle,
     // in pages, which is all any of them needs to know to place itself.
+    readonly property bool hasDatePage: IslandConfig.datePage
+    readonly property bool hasMediaPage: IslandConfig.mediaPage
+
     function pageIndex(page: int): int {
         if (page === IslandWindow.State.Custom)
             return -1;
@@ -176,10 +179,35 @@ StyledWindow {
     // only between neighbours, so the clock is always between the two.
     function settleSwipe(progress: real): void {
         if (progress <= -0.4)
-            resting = resting === IslandWindow.State.Lyrics ? IslandWindow.State.Normal : IslandWindow.State.Custom;
+            resting = resting === IslandWindow.State.Lyrics ? IslandWindow.State.Normal : (hasDatePage ? IslandWindow.State.Custom : resting);
         else if (progress >= 0.4)
-            resting = resting === IslandWindow.State.Custom ? IslandWindow.State.Normal : IslandWindow.State.Lyrics;
+            resting = resting === IslandWindow.State.Custom ? IslandWindow.State.Normal : (hasMediaPage ? IslandWindow.State.Lyrics : resting);
         swipeProgress = 0;
+    }
+
+    // Follow the music: the media page becomes the page the island rests on
+    // while something is playing, and hands the clock back when it stops. A
+    // swipe still overrides it -- this only moves the page you land on when
+    // nothing has been chosen.
+    readonly property var activePlayer: Players.active
+
+    onActivePlayerChanged: syncPlaybackPage()
+
+    readonly property Connections playbackConn: Connections {
+        target: root.activePlayer
+
+        function onIsPlayingChanged(): void {
+            root.syncPlaybackPage();
+        }
+    }
+
+    function syncPlaybackPage(): void {
+        if (!IslandConfig.followPlayback || !hasMediaPage)
+            return;
+        if (Players.active?.isPlaying)
+            resting = IslandWindow.State.Lyrics;
+        else if (resting === IslandWindow.State.Lyrics)
+            resting = IslandWindow.State.Normal;
     }
 
     name: "island"
@@ -280,15 +308,15 @@ StyledWindow {
         Timer {
             id: expandTimer
 
-            interval: IslandTokens.hoverExpandDelay
-            onTriggered: if (hover.hovered && !root.hasPanel)
+            interval: IslandConfig.hoverExpandDelay
+            onTriggered: if (hover.hovered && !root.hasPanel && IslandConfig.hoverAction !== IslandConfig.HoverAction.None)
                 root.hoverExpanded = true
         }
 
         Timer {
             id: collapseTimer
 
-            interval: IslandTokens.hoverCollapseDelay
+            interval: IslandConfig.hoverCollapseDelay
             onTriggered: if (!hover.hovered)
                 root.hoverExpanded = false
         }
@@ -306,7 +334,7 @@ StyledWindow {
             id: customLoader
 
             anchors.fill: parent
-            active: root.canSwipe && (root.islandState === IslandWindow.State.Custom || root.swipeProgress < 0)
+            active: root.hasDatePage && root.canSwipe && (root.islandState === IslandWindow.State.Custom || root.swipeProgress < 0)
             visible: active
 
             sourceComponent: DatePreviewLayer {
@@ -319,7 +347,7 @@ StyledWindow {
             id: lyricsLoader
 
             anchors.fill: parent
-            active: root.canSwipe && (root.islandState === IslandWindow.State.Lyrics || root.swipeProgress > 0)
+            active: root.hasMediaPage && root.canSwipe && (root.islandState === IslandWindow.State.Lyrics || root.swipeProgress > 0)
             visible: active
 
             sourceComponent: LyricsLayer {

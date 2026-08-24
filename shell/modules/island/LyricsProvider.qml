@@ -28,7 +28,7 @@ QtObject {
     // and talks to a lyrics API, neither of which is worth doing to an idle
     // session.
     readonly property Process proc: Process {
-        running: Players.active?.isPlaying ?? false
+        running: IslandConfig.lyrics && (Players.active?.isPlaying ?? false)
         command: [root.helper, "--pipe"]
 
         stdout: SplitParser {

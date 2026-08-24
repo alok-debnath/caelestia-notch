@@ -69,11 +69,11 @@ SlidingLayer {
     CavaBars {
         id: bars
 
+        visible: IslandConfig.visualiser
+
         anchors.right: parent.right
         anchors.rightMargin: IslandTokens.horizontalPadding * 0.875
         anchors.verticalCenter: parent.verticalCenter
 
-        implicitWidth: barCount * IslandTokens.barWidth + Math.max(0, barCount - 1) * IslandTokens.barSpacing
-        implicitHeight: IslandTokens.barAreaHeight
     }
 }
