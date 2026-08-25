@@ -28,6 +28,35 @@ Singleton {
             add(url);
     }
 
+    // Raw text/uri-list or x-special/gnome-copied-files payload: one URI per
+    // line, blank lines and comments (#...) skipped, a leading "copy"/"cut"
+    // action line (gnome-copied-files) skipped too.
+    function addUriList(data: string): void {
+        for (const line of data.split(/\r?\n/)) {
+            const uri = line.trim();
+            if (!uri || uri.startsWith("#") || uri === "copy" || uri === "cut")
+                continue;
+            add(uri);
+        }
+    }
+
+    // Hyprland (like most wlroots compositors) does not deliver Wayland
+    // drag-and-drop to wlr-layer-shell surfaces -- only to xdg-toplevel
+    // windows -- so a file dragged onto the notch is never actually offered
+    // to it. Paste is the working equivalent: copy a file in the file
+    // manager (puts text/uri-list on the clipboard) and pull it from there.
+    function pasteFromClipboard(): void {
+        pasteProc.running = true;
+    }
+
+    readonly property Process pasteProc: Process {
+        command: ["wl-paste", "--type", "text/uri-list"]
+
+        stdout: StdioCollector {
+            onStreamFinished: root.addAll(text.split("\n").filter(l => l.length > 0))
+        }
+    }
+
     function remove(path: string): void {
         adapter.paths = adapter.paths.filter(p => p !== path);
     }
@@ -40,8 +69,22 @@ Singleton {
         Quickshell.execDetached(["xdg-open", path]);
     }
 
+    // As a URI, not a plain path: most apps (file managers, chat clients,
+    // browser upload fields) only accept a paste as an actual file if the
+    // clipboard offers text/uri-list, not text/plain.
     function copy(path: string): void {
-        Quickshell.execDetached(["wl-copy", path]);
+        Quickshell.execDetached(["wl-copy", "--type", "text/uri-list", `file://${path}`]);
+    }
+
+    // For Item.Drag.mimeData on a shelf card, so dragging it onto another
+    // app's window is a real Wayland drag, not just a clipboard paste.
+    function mimeData(path: string): var {
+        const url = `file://${path}`;
+        return {
+            "text/uri-list": `${url}\r\n`,
+            "text/plain": path,
+            "x-special/gnome-copied-files": `copy\n${url}\n`
+        };
     }
 
     function name(path: string): string {

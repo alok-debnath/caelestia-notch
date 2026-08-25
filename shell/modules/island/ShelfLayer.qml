@@ -33,8 +33,17 @@ SlidingLayer {
             IslandText {
                 Layout.fillWidth: true
 
-                text: FileShelf.paths.length > 0 ? qsTr("%1 on the shelf").arg(FileShelf.paths.length) : qsTr("Drop files on the notch")
+                text: FileShelf.paths.length > 0 ? qsTr("%1 on the shelf").arg(FileShelf.paths.length) : qsTr("Drop a file on the notch, or paste one here")
                 elide: Text.ElideRight
+            }
+
+            // Paste, alongside drag-and-drop: a fallback for whatever the
+            // clipboard already has (Ctrl+C in the file manager), and less
+            // finicky than landing a drag on the capsule at rest.
+            IconButton {
+                icon: "content_paste"
+                type: IconButton.Text
+                onClicked: FileShelf.pasteFromClipboard()
             }
 
             IconButton {
@@ -63,10 +72,29 @@ SlidingLayer {
                 height: ListView.view.height
                 color: Colours.tPalette.m3surfaceContainer
                 radius: Tokens.rounding.large
+                scale: cardDrag.active ? 1.05 : 1
+
+                // A real Wayland drag out to another app's window, not just
+                // an internal QML one -- dragType Automatic hands the mime
+                // data to the platform's native drag-and-drop.
+                Drag.dragType: Drag.Automatic
+                Drag.supportedActions: Qt.CopyAction
+                Drag.proposedAction: Qt.CopyAction
+                Drag.hotSpot: Qt.point(width / 2, height / 2)
+                Drag.mimeData: FileShelf.mimeData(card.modelData)
 
                 StateLayer {
                     radius: parent.radius
                     onClicked: FileShelf.open(card.modelData)
+                }
+
+                DragHandler {
+                    id: cardDrag
+
+                    target: null
+                    acceptedButtons: Qt.LeftButton
+
+                    onActiveChanged: card.Drag.active = active
                 }
 
                 ColumnLayout {

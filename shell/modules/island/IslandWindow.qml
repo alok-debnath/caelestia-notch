@@ -540,23 +540,56 @@ StyledWindow {
             }
         }
 
-        // Dropping a file on the notch puts it on the shelf. The drop target is
-        // the capsule, which is small at rest -- so the notch opens the shelf
-        // as soon as a drag enters it, and the target grows with it.
+        // Dropping a file on the notch puts it on the shelf. Written to match
+        // Tide's own DropArea exactly -- no `keys:` filter, payload checked
+        // by hand, accept() called in onEntered as well as onDropped -- after
+        // a `keys`-filtered version never fired at all. That still doesn't
+        // land on this box: entered/dropped never fire here either, because
+        // of a Hyprland bug (fixed on main in hyprwm/Hyprland#15780,
+        // 2026-08-08, not yet in a packaged release as of this build,
+        // 0.56.2-3 from commit efb5099 dated 2026-08-05) where keyboard
+        // exclusivity held by any layer-shell surface blocks the compositor
+        // from ever offering a drag to other surfaces, layer-shell or not.
+        // Left in for when a build with that fix is packaged; until then the
+        // working path is FileShelf.pasteFromClipboard (see ShelfLayer's
+        // paste button). Drag-out (ShelfLayer's card Drag.dragType Automatic)
+        // is this surface acting as the drag *source*, not a target, so it
+        // may not hit the same bug -- untested against a real drag gesture,
+        // worth confirming once this is live.
         DropArea {
             anchors.fill: parent
 
-            keys: ["text/uri-list"]
+            function carriesFiles(drag): bool {
+                if (drag.hasUrls)
+                    return true;
+                const formats = drag.formats ?? [];
+                return formats.includes("text/uri-list") || formats.includes("x-special/gnome-copied-files");
+            }
 
-            onEntered: root.dropping = true
+            onEntered: drag => {
+                if (!carriesFiles(drag)) {
+                    drag.accepted = false;
+                    return;
+                }
+                drag.accept(Qt.CopyAction);
+                root.dropping = true;
+            }
             onExited: root.dropping = false
             onDropped: drop => {
                 root.dropping = false;
+                if (!carriesFiles(drop)) {
+                    drop.accepted = false;
+                    return;
+                }
                 if (drop.hasUrls) {
                     FileShelf.addAll(drop.urls);
-                    root.panel = IslandWindow.State.Shelf;
+                } else if (drop.formats.includes("text/uri-list")) {
+                    FileShelf.addUriList(drop.getDataAsString("text/uri-list"));
+                } else if (drop.formats.includes("x-special/gnome-copied-files")) {
+                    FileShelf.addUriList(drop.getDataAsString("x-special/gnome-copied-files"));
                 }
-                drop.accept();
+                root.panel = IslandWindow.State.Shelf;
+                drop.accept(Qt.CopyAction);
             }
         }
 

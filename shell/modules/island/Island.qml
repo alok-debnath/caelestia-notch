@@ -46,6 +46,14 @@ Scope {
             root.forActiveWindow(w => w.openPanel(IslandWindow.State.Shelf));
         }
 
+        // Wayland drag-and-drop never reaches this window (layer-shell, not a
+        // toplevel), so this is the keybind-friendly form of the paste button
+        // in ShelfLayer: copy a file, then call this.
+        function pasteFile(): void {
+            FileShelf.pasteFromClipboard();
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Shelf));
+        }
+
         function toggleSearch(): void {
             root.forActiveWindow(w => w.toggleSearch());
         }
