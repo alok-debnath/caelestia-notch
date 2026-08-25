@@ -31,6 +31,7 @@ StyledWindow {
         Long,         // transient: a line of text (workspace switches)
         Notification, // transient: a notification
         FaceId,       // transient: a biopass face scan
+        Bluetooth,    // transient: a device just connected
         Player,       // panel: now playing
         Calendar,     // panel: calendar
         Performance,  // panel: system resources
@@ -38,6 +39,7 @@ StyledWindow {
         NotifCenter,  // panel: notification history
         Shelf,        // panel: the file shelf
         Clipboard,    // panel: clipboard history
+        Wallpaper,    // panel: the wallpaper library
         Search        // panel: the notch as a search field
     }
 
@@ -72,7 +74,11 @@ StyledWindow {
 
     // -1 (fully on the left page) .. 1 (fully on the right page) while dragging.
     property real swipeProgress: 0
-    readonly property bool swiping: swipeHandler.active
+    // True while the strip is being moved by hand -- a drag, or a wheel that
+    // has not settled yet. The capsule follows directly then rather than
+    // animating, which is what keeps it under the finger.
+    property bool wheeling: false
+    readonly property bool swiping: swipeHandler.active || wheeling
 
     readonly property bool hasPanel: panel !== IslandWindow.State.Normal
 
@@ -93,6 +99,8 @@ StyledWindow {
         // something the user is standing in front of the camera waiting for.
         if (faceId.showing)
             return IslandWindow.State.FaceId;
+        if (bluetooth.showing && IslandConfig.bluetooth)
+            return IslandWindow.State.Bluetooth;
         if (events.showing)
             return IslandWindow.State.Long;
         if (osd.showing && IslandConfig.osd)
@@ -109,12 +117,33 @@ StyledWindow {
 
     readonly property bool isResting: islandState === IslandWindow.State.Normal || islandState === IslandWindow.State.Custom || islandState === IslandWindow.State.Lyrics
 
-    // Whether the switcher pill should be showing: any state it can actually
-    // switch between, whether that state was reached by an explicit
-    // `openPanel()` or by the Auto hover fallback landing on NotifCenter.
-    // Keying this off `hasPanel` alone missed the hover case entirely -- the
-    // switcher just never appeared while hovering was what got you there.
-    readonly property bool showSwitcher: [IslandWindow.State.Calendar, IslandWindow.State.Performance, IslandWindow.State.NotifCenter, IslandWindow.State.Shelf, IslandWindow.State.Overview].includes(islandState)
+    // The switcher's tabs, left to right. It is the switcher's own order, and
+    // it is also the axis panels travel along when one replaces another: this
+    // is the one list both read, so the highlight and the content can never
+    // disagree about which way the switch went.
+    // What the tabs are called, for the row that opens on hover. Parallel to
+    // `panelOrder`.
+    readonly property var panelNames: [qsTr("Calendar"), qsTr("System"), qsTr("Notifications"), qsTr("Workspaces"), qsTr("Wallpapers"), qsTr("Shelf"), qsTr("Clipboard")]
+
+    readonly property var panelOrder: [IslandWindow.State.Calendar, IslandWindow.State.Performance, IslandWindow.State.NotifCenter, IslandWindow.State.Overview, IslandWindow.State.Wallpaper, IslandWindow.State.Shelf, IslandWindow.State.Clipboard]
+
+    // -1, 0 or 1: which way along `panelOrder` the last state change moved.
+    // Zero for anything that is not a switch between two tabs -- opening a
+    // panel from resting, or a transient interrupting -- so those still just
+    // fade rather than sliding in from a side that means nothing.
+    property int switchDirection: 0
+    property int previousState: IslandWindow.State.Normal
+
+    // Declared above the layers on purpose: handlers on the same signal run in
+    // the order they were connected, so this one has to be in place before the
+    // layers react to the state change and read the direction out of it.
+    onIslandStateChanged: {
+        const from = panelOrder.indexOf(previousState);
+        const to = panelOrder.indexOf(islandState);
+        switchDirection = from >= 0 && to >= 0 ? Math.sign(to - from) : 0;
+        previousState = islandState;
+    }
+
 
     // Swiping is only offered on the resting states: a panel or a transient is
     // not a page you can slide off.
@@ -134,8 +163,30 @@ StyledWindow {
         return 0;
     }
 
+    // The transients: a level, a workspace, a face scan. Short-lived states
+    // that take the box over and hand it straight back.
+    readonly property bool isTransient: islandState === IslandWindow.State.Split || islandState === IslandWindow.State.Long || islandState === IslandWindow.State.FaceId || islandState === IslandWindow.State.Bluetooth
+
+    // A transient that interrupts while the island is resting on a side page
+    // arrives from that side, and the page it replaces leaves the way a swipe
+    // would take it -- Tide's `splitOriginSide`. Zero on the clock (there is
+    // no side to come from) and zero for a notification, which Tide treats as
+    // its own thing rather than as part of the strip.
+    readonly property int transientSide: {
+        if (!isTransient)
+            return 0;
+        if (resting === IslandWindow.State.Custom)
+            return -1;
+        if (resting === IslandWindow.State.Lyrics)
+            return 1;
+        return 0;
+    }
+
     function pageOffset(page: int): real {
-        return pageIndex(page) - pageIndex(resting) - swipeProgress;
+        // `- transientSide` is the push: the page goes off the way the
+        // transient came in, so the two move as one strip rather than as a
+        // fade between two unrelated things.
+        return pageIndex(page) - pageIndex(resting) - swipeProgress - transientSide;
     }
 
     readonly property real targetWidth: {
@@ -148,6 +199,8 @@ StyledWindow {
             return IslandTokens.longWidth;
         case IslandWindow.State.Notification:
             return Math.max(IslandTokens.notifMinWidth, Math.min(root.width - IslandTokens.swipeSideMargin, notifLoader.item?.implicitWidth ?? 0));
+        case IslandWindow.State.Bluetooth:
+            return Math.max(IslandTokens.longWidth, Math.min(root.width - IslandTokens.swipeSideMargin, bluetoothLoader.item?.preferredWidth ?? 0));
         case IslandWindow.State.Player:
             return IslandTokens.playerWidth;
         case IslandWindow.State.Calendar:
@@ -157,13 +210,16 @@ StyledWindow {
             // reading and a figure, and at panel width they start eliding.
             return IslandTokens.widePanelWidth;
         case IslandWindow.State.Overview:
-            return IslandTokens.overviewWidth;
+            // The slab is as wide as its own grid, not a fixed panel width.
+            return Math.min(root.width - IslandTokens.swipeSideMargin, overviewLoader.item?.implicitWidth ?? IslandTokens.overviewWidth);
         case IslandWindow.State.NotifCenter:
             return IslandTokens.panelWidth;
         case IslandWindow.State.Shelf:
             return Math.min(root.width - IslandTokens.swipeSideMargin, IslandTokens.shelfWidth);
         case IslandWindow.State.Clipboard:
             return IslandTokens.panelWidth;
+        case IslandWindow.State.Wallpaper:
+            return Math.min(root.width - IslandTokens.swipeSideMargin, IslandTokens.shelfWidth);
         case IslandWindow.State.Search:
             return Math.min(root.width - IslandTokens.swipeSideMargin, searchLoader.item?.implicitWidth ?? IslandTokens.searchWidth);
         case IslandWindow.State.Custom:
@@ -193,6 +249,8 @@ StyledWindow {
             return IslandTokens.shelfHeight;
         case IslandWindow.State.Clipboard:
             return IslandTokens.clipboardHeight;
+        case IslandWindow.State.Wallpaper:
+            return IslandTokens.shelfHeight;
         case IslandWindow.State.Search:
             return searchLoader.item?.implicitHeight ?? IslandTokens.searchBarHeight;
 
@@ -204,7 +262,8 @@ StyledWindow {
     readonly property real targetRadius: {
         switch (islandState) {
         case IslandWindow.State.Notification:
-            return targetHeight > IslandTokens.notifMinHeight ? IslandTokens.notifRadius : targetHeight / 2;
+            // A pill until it is opened out, then a panel -- Tide's rule.
+            return notifications.expanded ? IslandTokens.notifRadius : targetHeight / 2;
         case IslandWindow.State.Player:
             return IslandTokens.playerRadius;
         case IslandWindow.State.Calendar:
@@ -213,6 +272,7 @@ StyledWindow {
         case IslandWindow.State.NotifCenter:
         case IslandWindow.State.Shelf:
         case IslandWindow.State.Clipboard:
+        case IslandWindow.State.Wallpaper:
             return IslandTokens.panelRadius;
         case IslandWindow.State.Search:
             // A pill while it is only a field, a panel once results hang off it.
@@ -233,10 +293,82 @@ StyledWindow {
         return IslandTokens.restingWidth;
     }
 
+    // Which page the expanded panel is on -- now playing, or the timer. Kept
+    // on the window rather than in the layer: the panel is unloaded every time
+    // it closes, and coming back to the page you left is the whole point.
+    property int playerPage: 0
+
+    function openTimer(): void {
+        playerPage = 1;
+        if (panel !== IslandWindow.State.Player)
+            openPanel(IslandWindow.State.Player);
+    }
+
     // A face scan has started somewhere in the session. Called from the IPC
     // handler in Island.qml, which is what the pam_exec gate pings.
     function beginFaceId(): void {
         faceId.begin();
+    }
+
+    // The actions a click can be bound to. Strings rather than an enum so the
+    // config file stays readable and a new one does not renumber the old.
+    // Where the open panel sits in the tab order, or -1 for a surface that is
+    // not one of the tabs (the player, search, a transient).
+    readonly property int panelIndex: panelOrder.indexOf(islandState)
+
+    // Move between tabs. Clamped rather than wrapping: the dots say where the
+    // ends are, and a carousel that loops makes them a lie.
+    function stepPanel(by: int): void {
+        if (panelIndex < 0)
+            return;
+        const next = Math.max(0, Math.min(panelOrder.length - 1, panelIndex + by));
+        if (next !== panelIndex)
+            panel = panelOrder[next];
+    }
+
+    function showPanelAt(index: int): void {
+        if (index >= 0 && index < panelOrder.length)
+            panel = panelOrder[index];
+    }
+
+    function runAction(action: string): void {
+        switch (action) {
+        case "player":
+            openPanel(IslandWindow.State.Player);
+            return;
+        case "overview":
+            openPanel(IslandWindow.State.Overview);
+            return;
+        case "notifications":
+            openPanel(IslandWindow.State.NotifCenter);
+            return;
+        case "calendar":
+            openPanel(IslandWindow.State.Calendar);
+            return;
+        case "performance":
+            openPanel(IslandWindow.State.Performance);
+            return;
+        case "wallpapers":
+            openPanel(IslandWindow.State.Wallpaper);
+            return;
+        case "shelf":
+            openPanel(IslandWindow.State.Shelf);
+            return;
+        case "clipboard":
+            openPanel(IslandWindow.State.Clipboard);
+            return;
+        case "timer":
+            openTimer();
+            return;
+        case "search":
+            toggleSearch();
+            return;
+        case "close":
+            close();
+            return;
+        default:
+            return;
+        }
     }
 
     function openPanel(which: int): void {
@@ -334,6 +466,31 @@ StyledWindow {
     // means a panel is clickable the moment it opens rather than 400ms later.
     mask: Region {
         item: maskItem
+
+        // The bubbles sit outside the capsule, so the capsule's own region
+        // does not cover them and a click would fall through to whatever is
+        // behind the notch. Bound by hand rather than with `item:` so a bubble
+        // that is not up claims nothing.
+        Region {
+            x: tabs.x
+            y: tabs.y
+            width: tabs.visible ? tabs.width : 0
+            height: tabs.visible ? tabs.height : 0
+        }
+
+        Region {
+            x: shelfBubble.x
+            y: shelfBubble.y
+            width: shelfBubble.visible ? shelfBubble.width : 0
+            height: shelfBubble.visible ? shelfBubble.height : 0
+        }
+
+        Region {
+            x: timerBubble.x
+            y: timerBubble.y
+            width: timerBubble.visible ? timerBubble.width : 0
+            height: timerBubble.visible ? timerBubble.height : 0
+        }
     }
 
     Item {
@@ -388,17 +545,116 @@ StyledWindow {
 
         // Hover, not click. The capsule reacts to the pointer being on it; the
         // only things that respond to a click are the controls inside it.
-        HoverHandler {
-            id: hover
+        // What a click on the capsule does.
+        //
+        // Tide has no tab strip: the island is one object, and which surface it
+        // opens is a *property of the click*, configured per button (Panels ->
+        // Island -> Clicks). A pill of tabs floating over the panel was this
+        // island's own invention and the one part of it that never belonged --
+        // it turned a shape that morphs into a window with chrome.
+        TapHandler {
+            acceptedButtons: Qt.LeftButton
+            gesturePolicy: TapHandler.ReleaseWithinBounds
 
-            onHoveredChanged: {
-                if (hovered) {
-                    collapseTimer.stop();
-                    expandTimer.restart();
-                } else {
-                    expandTimer.stop();
-                    collapseTimer.restart();
+            onTapped: root.runAction(IslandConfig.clickAction)
+        }
+
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+
+            onTapped: root.runAction(IslandConfig.rightClickAction)
+        }
+
+        TapHandler {
+            acceptedButtons: Qt.MiddleButton
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+
+            onTapped: root.runAction(IslandConfig.middleClickAction)
+        }
+
+        // Scroll over an open panel to move between the tabs.
+        //
+        // Below the panel's own content in the stack, so anything that scrolls
+        // -- the wallpaper strip, the notification list -- gets the wheel
+        // first and only what it does not use reaches here. One notch is one
+        // tab, with a short cooldown so a flick does not fly through five of
+        // them.
+        WheelHandler {
+            id: panelWheel
+
+            property bool cooling: false
+
+            enabled: root.panelIndex >= 0
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            orientation: Qt.Horizontal | Qt.Vertical
+
+            onWheel: event => {
+                if (cooling)
+                    return;
+
+                const px = event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0 ? event.pixelDelta : Qt.point(event.angleDelta.x / 4, event.angleDelta.y / 4);
+                const delta = Math.abs(px.x) > Math.abs(px.y) ? px.x : px.y;
+                if (Math.abs(delta) < 2)
+                    return;
+
+                root.stepPanel(delta < 0 ? 1 : -1);
+                cooling = true;
+                panelWheelCooldown.restart();
+            }
+        }
+
+        Timer {
+            id: panelWheelCooldown
+
+            interval: 260
+            onTriggered: panelWheel.cooling = false
+        }
+
+        // Scroll over the notch to move between the resting pages.
+        //
+        // Tide's own gesture, and the better one: the wheel scrubs the strip
+        // live -- the clock leaving and the page arriving track the notches --
+        // and 150 ms after the last notch it settles to whichever page it is
+        // nearest. A wheel event carries no press and no release, so the settle
+        // timer is what stands in for letting go.
+        WheelHandler {
+            id: wheel
+
+            property real accumulated: 0
+
+            enabled: root.canSwipe
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            orientation: Qt.Horizontal | Qt.Vertical
+
+            onWheel: event => {
+                if (!wheelSettle.running) {
+                    wheel.accumulated = root.swipeProgress * IslandTokens.restingWidth * 0.6;
+                    root.wheeling = true;
                 }
+
+                // Whichever axis moved more: a horizontal trackpad flick and a
+                // vertical mouse wheel are the same gesture on a strip that
+                // only moves sideways. Tide's 0.8 damping, so a notch is a
+                // nudge rather than a page.
+                const px = event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0 ? event.pixelDelta : Qt.point(event.angleDelta.x / 4, event.angleDelta.y / 4);
+                const delta = Math.abs(px.x) > Math.abs(px.y) ? px.x : px.y;
+
+                wheel.accumulated -= delta * 0.8;
+                root.swipeProgress = Math.max(-1, Math.min(1, wheel.accumulated / (IslandTokens.restingWidth * 0.6)));
+                wheelSettle.restart();
+            }
+        }
+
+        Timer {
+            id: wheelSettle
+
+            interval: 150
+            onTriggered: {
+                root.wheeling = false;
+                root.settleSwipe(root.swipeProgress);
             }
         }
 
@@ -448,7 +704,10 @@ StyledWindow {
             anchors.horizontalCenter: parent.horizontalCenter
 
             y: 0
-            width: root.swiping ? root.swipePreviewWidth : (root.isResting ? root.targetWidth : IslandTokens.restingWidth)
+            // The box is the capsule while the strip owns it -- including
+            // through a transient that came in from a side page, which is
+            // still the strip's own motion finishing.
+            width: root.swiping ? root.swipePreviewWidth : (root.isResting || root.transientSide !== 0 ? root.targetWidth : IslandTokens.restingWidth)
             height: IslandTokens.restingHeight
 
             Behavior on width {
@@ -460,39 +719,61 @@ StyledWindow {
                 }
             }
 
-            // Every page fills the strip and slides or fades itself. Tide does
-            // it this way so that during a swipe the page arriving and the page
-            // leaving are both mounted and both moving.
-            ClockLayer {
-                offset: root.pageOffset(IslandWindow.State.Normal)
-                showCondition: root.isResting
-                animated: !root.swiping
+            // Tide's strip: one box, and the pages move their own content
+            // through it. Which pages are mounted follows Tide exactly -- the
+            // media page owns the box from the middle rightward, the status
+            // page from the middle leftward, and whichever of the two is up at
+            // rest is the one drawing the clock. Both stay mounted through a
+            // transient that came in from their side, so the page can leave
+            // along the same axis instead of blinking out under it.
+            readonly property bool mediaPageMounted: root.hasMediaPage && !root.hasPanel && (root.islandState === IslandWindow.State.Lyrics || (root.islandState === IslandWindow.State.Normal && root.swipeProgress >= 0) || root.transientSide === 1)
+            readonly property bool statusPageMounted: root.hasDatePage && !root.hasPanel && (root.islandState === IslandWindow.State.Custom || ((root.islandState === IslandWindow.State.Normal || (root.islandState === IslandWindow.State.Lyrics && !root.hasMediaPage)) && root.swipeProgress < 0) || root.transientSide === -1)
+
+            opacity: root.isResting || root.transientSide !== 0 ? 1 : 0
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: root.isResting ? 220 : 140
+                    easing.type: Easing.InOutQuad
+                }
             }
 
-            Loader {
-                id: customLoader
-
+            // The fallback clock, for a notch with both side pages turned off:
+            // then no page is mounted to carry the time.
+            ClockLayer {
                 anchors.fill: parent
-                active: root.hasDatePage && root.canSwipe && (root.islandState === IslandWindow.State.Custom || root.swipeProgress < 0)
-                visible: active
 
-                sourceComponent: DatePreviewLayer {
-                    offset: root.pageOffset(IslandWindow.State.Custom)
-                    animated: !root.swiping
-                }
+                visible: !restingArea.mediaPageMounted && !restingArea.statusPageMounted
             }
 
             Loader {
                 id: lyricsLoader
 
                 anchors.fill: parent
-                active: root.hasMediaPage && root.canSwipe && (root.islandState === IslandWindow.State.Lyrics || root.swipeProgress > 0)
+                active: restingArea.mediaPageMounted
                 visible: active
 
                 sourceComponent: LyricsLayer {
-                    offset: root.pageOffset(IslandWindow.State.Lyrics)
                     animated: !root.swiping
+                    offset: root.pageOffset(IslandWindow.State.Lyrics)
                     maximumWidth: root.width - IslandTokens.swipeSideMargin
+                    // The transient that came in from this side is standing
+                    // where the clock would be.
+                    showClock: root.transientSide !== 1
+                }
+            }
+
+            Loader {
+                id: customLoader
+
+                anchors.fill: parent
+                active: restingArea.statusPageMounted
+                visible: active
+
+                sourceComponent: DatePreviewLayer {
+                    animated: !root.swiping
+                    offset: root.pageOffset(IslandWindow.State.Custom)
+                    showClock: root.transientSide !== -1
                 }
             }
         }
@@ -520,6 +801,18 @@ StyledWindow {
         }
 
         IslandLayer {
+            id: bluetoothLoader
+
+            island: root
+            forState: IslandWindow.State.Bluetooth
+
+            sourceComponent: BluetoothLayer {
+                device: bluetooth.device
+                maximumWidth: root.width - IslandTokens.swipeSideMargin
+            }
+        }
+
+        IslandLayer {
             island: root
             forState: IslandWindow.State.Long
 
@@ -540,6 +833,17 @@ StyledWindow {
             sourceComponent: NotificationLayer {
                 notif: notifications.current
                 maximumWidth: root.width - IslandTokens.swipeSideMargin
+                expanded: notifications.expanded
+                onExpansionToggled: notifications.toggleExpanded()
+            }
+        }
+
+        IslandLayer {
+            island: root
+            forState: IslandWindow.State.Wallpaper
+
+            sourceComponent: WallpaperLayer {
+                island: root
             }
         }
 
@@ -549,6 +853,8 @@ StyledWindow {
 
             sourceComponent: PlayerLayer {
                 island: root
+                Component.onCompleted: settlePage(root.playerPage)
+                onCurrentPageChanged: root.playerPage = currentPage
             }
         }
 
@@ -667,7 +973,7 @@ StyledWindow {
             forState: IslandWindow.State.Search
             anchorTop: true
 
-            sourceComponent: SearchLayer {
+            sourceComponent: LauncherLayer {
                 island: root
             }
         }
@@ -683,19 +989,35 @@ StyledWindow {
             }
         }
 
-        // Fixed above every panel's own content, not inside any one panel's
-        // layout: see IslandSwitcher.qml and IslandTokens.switcherReserve.
-        // No fade here on purpose: this sits on top of whichever other layer
-        // is active, and an animated show/hide left a ghost frame of the pill
-        // visible over a transient notification toast that pre-empted it
-        // mid-fade. It should be there or not, on the same frame the content
-        // under it changes.
-        IslandSwitcher {
-            anchors.horizontalCenter: parent.horizontalCenter
+    }
 
-            y: Tokens.padding.small
-            island: root
-            visible: root.showSwitcher
+    // Is the pointer on the island?
+    //
+    // Declared here rather than on the capsule, which is where it used to be,
+    // and the move is the whole fix for a flicker that made the notch open and
+    // shut under the pointer: Qt hands a hover event to the *topmost sibling*
+    // that accepts it, so the moment the tab row (a sibling drawn over the
+    // capsule) took the hover, the capsule's own handler went false, the
+    // collapse timer ran, the hover-opened panel closed, the row went with it,
+    // the pointer was over the capsule again -- and round it went.
+    //
+    // A handler declared at window scope attaches to the content item, which
+    // is an *ancestor* of the capsule, the tab row and both bubbles, and
+    // ancestors keep receiving hover no matter which descendant accepts it.
+    // The window's input mask is what makes this mean "on the island" rather
+    // than "anywhere on this screen-wide surface": outside the capsule and the
+    // bubbles, the surface takes no input at all.
+    HoverHandler {
+        id: hover
+
+        onHoveredChanged: {
+            if (hovered) {
+                collapseTimer.stop();
+                expandTimer.restart();
+            } else {
+                expandTimer.stop();
+                collapseTimer.restart();
+            }
         }
     }
 
@@ -708,6 +1030,89 @@ StyledWindow {
     // closes whatever the notch had open, the same "click away closes it"
     // behaviour search already had. Interactions within this window itself
     // (the switcher pill included) don't count as losing focus.
+    // Which tab is open, at the foot of the panel. The same row the player
+    // uses for its two pages, so one dot row means the same thing everywhere
+    // in the island -- and it is the drag handle, since the panels themselves
+    // own their drags.
+    PageDots {
+        id: tabs
+
+        anchors.horizontalCenter: capsule.horizontalCenter
+        anchors.top: capsule.top
+        anchors.topMargin: IslandTokens.dotsMargin
+
+        count: root.panelOrder.length
+        position: Math.max(0, root.panelIndex)
+        labels: root.panelNames
+        opacity: root.panelIndex >= 0 ? 1 : 0
+        visible: opacity > 0
+
+        onSelected: index => root.showPanelAt(index)
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: IslandTokens.contentFadeDuration
+                easing.type: Easing.InOutQuad
+            }
+        }
+    }
+
+    // The bubbles: what the island is holding for you while it rests.
+    //
+    // Both slide out from behind the capsule's own edge rather than fading in
+    // beside it -- they start overlapped, small and low, and rise into place,
+    // so they read as something the island pushed out. Only while it is
+    // resting: a panel or a notification is already the thing being looked at.
+    ShelfBubble {
+        id: shelfBubble
+
+        readonly property real hiddenX: capsule.x - width * 0.38
+        readonly property real shownX: capsule.x - width - 8
+
+        x: hiddenX + (shownX - hiddenX) * reveal
+        y: capsule.y + (capsule.height - height) / 2 + (1 - reveal) * 10
+        z: 6
+
+        opacity: root.isResting ? 1 : 0
+
+        onTriggered: root.openPanel(IslandWindow.State.Shelf)
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: IslandTokens.contentFadeDuration
+                easing.type: Easing.InOutQuad
+            }
+        }
+    }
+
+    TimerBubble {
+        id: timerBubble
+
+        readonly property real hiddenX: capsule.x + capsule.width - width * 0.62
+        readonly property real shownX: capsule.x + capsule.width + 8
+
+        x: hiddenX + (shownX - hiddenX) * reveal
+        y: capsule.y + (capsule.height - height) / 2 + (1 - reveal) * 10
+        z: 6
+
+        opacity: root.isResting ? 1 : 0
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: IslandTokens.contentFadeDuration
+                easing.type: Easing.InOutQuad
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+
+            cursorShape: Qt.PointingHandCursor
+
+            onClicked: root.openTimer()
+        }
+    }
+
     HyprlandFocusGrab {
         active: root.searchOpen || root.hasPanel
         windows: [root]
@@ -723,6 +1128,12 @@ StyledWindow {
 
     EventWatcher {
         id: events
+
+        blocked: root.hasPanel || root.searchOpen
+    }
+
+    BluetoothWatcher {
+        id: bluetooth
 
         blocked: root.hasPanel || root.searchOpen
     }

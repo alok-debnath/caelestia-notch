@@ -16,10 +16,25 @@ QtObject {
     // The notification the island is currently showing, or null.
     property NotifData current: null
 
+    // Whether the one on screen has been opened out. Tide stops the auto-hide
+    // while it is: a notification you have just asked to read is not one to
+    // take away two seconds later. It is dropped whenever the notification
+    // changes, so the next one arrives compact.
+    property bool expanded: false
+
+    function toggleExpanded(): void {
+        expanded = !expanded;
+        if (expanded)
+            holdTimer.stop();
+        else
+            holdTimer.restart();
+    }
+
     function dismiss(): void {
         if (current)
             current.popup = false;
         current = null;
+        expanded = false;
     }
 
     // Show the newest popup. A newer notification replaces whatever is on
@@ -31,6 +46,7 @@ QtObject {
             const popups = Notifs.popups;
             if (popups.length === 0) {
                 root.current = null;
+                root.expanded = false;
                 holdTimer.stop();
                 return;
             }
@@ -40,6 +56,7 @@ QtObject {
                 return;
 
             root.current = newest;
+            root.expanded = false;
             holdTimer.interval = newest.expireTimeout > 0 ? newest.expireTimeout : IslandTokens.notifHideDelay;
             holdTimer.restart();
         }

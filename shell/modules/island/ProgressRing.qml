@@ -18,9 +18,15 @@ Item {
     implicitWidth: IslandTokens.progressSize
     implicitHeight: IslandTokens.progressSize
 
+    // Smoothed rather than a fresh animation per step: holding a volume key
+    // sets the level several times a second, and restarting a 200ms curve on
+    // every one of them makes the ring stutter behind the figure. Tide's
+    // numbers -- the velocity is the cap, the duration is the settle.
     Behavior on value {
-        Anim {
-            type: Anim.FastSpatial
+        SmoothedAnimation {
+            velocity: 1.2
+            duration: 180
+            easing.type: Easing.InOutQuad
         }
     }
 

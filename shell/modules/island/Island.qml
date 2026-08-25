@@ -41,6 +41,32 @@ Scope {
             root.forActiveWindow(w => w.openPanel(IslandWindow.State.Overview));
         }
 
+        // The timer lives on the expanded panel's second page. Worth a call of
+        // its own: it is the one thing in the island you would want to reach
+        // without hunting for the panel first.
+        function timer(): void {
+            root.forActiveWindow(w => w.openTimer());
+        }
+
+        // Start or stop whatever the timer is set to, without opening the
+        // panel: the dial is a panel job, running it is a keybind job.
+        function timerToggle(): void {
+            IslandTimer.toggle();
+        }
+
+        function timerReset(): void {
+            IslandTimer.reset();
+        }
+
+        // Minutes, for a keybind that wants a fixed length.
+        function timerSet(minutes: int): void {
+            IslandTimer.setDuration(Math.floor(minutes / 60), minutes % 60);
+        }
+
+        function toggleWallpapers(): void {
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Wallpaper));
+        }
+
         function toggleShelf(): void {
             root.forActiveWindow(w => w.openPanel(IslandWindow.State.Shelf));
         }

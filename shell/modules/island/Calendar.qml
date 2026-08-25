@@ -34,6 +34,11 @@ CustomMouseArea {
             viewDate = new Date(nonAnimCurrYear, nonAnimCurrMonth + 1, 1);
     }
 
+    // What the grid is inset by. Exposed because a host that already pads --
+    // the island's panel does -- would otherwise pad twice, and the calendar
+    // would sit lower in the notch than every other panel.
+    property real padding: Tokens.padding.large
+
     anchors.left: parent.left
     anchors.right: parent.right
     implicitHeight: inner.implicitHeight + inner.anchors.margins * 2
@@ -92,7 +97,7 @@ CustomMouseArea {
         id: inner
 
         anchors.fill: parent
-        anchors.margins: Tokens.padding.large
+        anchors.margins: root.padding
         spacing: Tokens.spacing.extraSmall
 
         RowLayout {

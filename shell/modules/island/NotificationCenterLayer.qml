@@ -22,21 +22,17 @@ SlidingLayer {
 
     readonly property list<NotifData> notifs: Notifs.notClosed
 
-    implicitHeight: Math.min(IslandTokens.notifCenterMaxHeight, layout.implicitHeight + Tokens.padding.extraLarge * 2)
+    implicitHeight: Math.min(IslandTokens.notifCenterMaxHeight, layout.implicitHeight + IslandTokens.panelPadding + IslandTokens.panelTopReserve)
 
     ColumnLayout {
         id: layout
 
         anchors.fill: parent
-        anchors.margins: Tokens.padding.extraLarge
+        anchors.margins: IslandTokens.panelPadding
+        anchors.topMargin: IslandTokens.panelTopReserve
 
         spacing: Tokens.spacing.small
 
-        // Reserves the space IslandSwitcher floats above, fixed at the top of
-        // every panel -- see IslandTokens.switcherReserve.
-        Item {
-            Layout.preferredHeight: IslandTokens.switcherReserve
-        }
 
         RowLayout {
             Layout.fillWidth: true

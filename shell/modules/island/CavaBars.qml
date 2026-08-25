@@ -20,7 +20,14 @@ Item {
     // service is configured for Caelestia's wall-sized visualiser, which is
     // sixty-odd; drawn at Tide's bar metrics that is a strip wider than the
     // whole notch. Each bar here stands for a slice of that spectrum.
-    readonly property int barCount: IslandTokens.mediaBarCount
+    property int barCount: IslandTokens.mediaBarCount
+
+    // Overridable so the same strip can be the wide one on the media page and
+    // the short one beside a track title in the player panel.
+    property real barWidth: IslandTokens.barWidth
+    property real barSpacing: IslandTokens.barSpacing
+    property real minBarHeight: IslandTokens.barMinHeight
+    property color barColour: Colours.palette.m3primary
 
     function levelAt(i: int): real {
         const n = levels.length;
@@ -34,7 +41,7 @@ Item {
         return sum / (to - from);
     }
 
-    implicitWidth: barCount * IslandTokens.barWidth + Math.max(0, barCount - 1) * IslandTokens.barSpacing
+    implicitWidth: barCount * barWidth + Math.max(0, barCount - 1) * barSpacing
     implicitHeight: IslandTokens.barAreaHeight
 
     ServiceRef {
@@ -43,7 +50,7 @@ Item {
 
     Row {
         anchors.fill: parent
-        spacing: IslandTokens.barSpacing
+        spacing: root.barSpacing
 
         Repeater {
             model: root.barCount
@@ -53,10 +60,10 @@ Item {
 
                 readonly property real level: Math.max(0, Math.min(1, root.levelAt(index)))
 
-                width: IslandTokens.barWidth
-                height: IslandTokens.barMinHeight + (root.height - IslandTokens.barMinHeight) * level
+                width: root.barWidth
+                height: root.minBarHeight + (root.height - root.minBarHeight) * level
                 radius: width / 2
-                color: Colours.palette.m3primary
+                color: root.barColour
                 anchors.verticalCenter: parent.verticalCenter
 
                 Behavior on height {

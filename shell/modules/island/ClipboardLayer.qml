@@ -19,13 +19,10 @@ SlidingLayer {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Tokens.padding.extraLarge
+        anchors.margins: IslandTokens.panelPadding
+        anchors.topMargin: IslandTokens.panelTopReserve
 
         spacing: Tokens.spacing.small
-
-        // No switcher pill reserve here: Clipboard isn't in `showSwitcher`
-        // (opened only by its own keybind, like Player), so nothing floats
-        // above this panel's content to leave room for.
 
         RowLayout {
             Layout.fillWidth: true

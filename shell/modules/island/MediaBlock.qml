@@ -42,22 +42,20 @@ RowLayout {
         Layout.maximumWidth: IslandTokens.maxWidth / 2
         spacing: 0
 
-        StyledText {
+        IslandRollText {
             Layout.fillWidth: true
 
-            animate: true
             text: root.player?.trackTitle || qsTr("Nothing playing")
-            font: Tokens.font.body.small
+            fontStyle: Tokens.font.body.small
             color: Colours.palette.m3onSurface
             elide: Text.ElideRight
         }
 
-        StyledText {
+        IslandRollText {
             Layout.fillWidth: true
 
-            animate: true
             text: root.player?.trackArtist ?? ""
-            font: Tokens.font.body.small
+            fontStyle: Tokens.font.body.small
             color: Colours.palette.m3onSurfaceVariant
             elide: Text.ElideRight
             visible: text.length > 0

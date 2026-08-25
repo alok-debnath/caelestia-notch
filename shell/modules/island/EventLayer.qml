@@ -41,12 +41,11 @@ SlidingLayer {
             visible: !root.isWorkspace
         }
 
-        IslandText {
+        IslandRollText {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
 
             hero: root.isWorkspace
-            animate: root.isWorkspace
             text: root.isWorkspace ? `${root.title} ${Hypr.activeWsId}` : (root.detail.length > 0 ? `${root.title} · ${root.detail}` : root.title)
             color: root.isWorkspace ? Colours.palette.m3primary : Colours.palette.m3onSurface
             elide: Text.ElideRight

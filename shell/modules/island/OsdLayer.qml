@@ -44,7 +44,10 @@ SlidingLayer {
             fontStyle: Tokens.font.icon.builders.medium.build()
         }
 
-        IslandText {
+        // The figure rolls rather than snapping: holding a volume key steps it
+        // several times a second, and a number that cuts is the one part of the
+        // OSD that reads as a redraw instead of as a level moving.
+        IslandRollText {
             anchors.verticalCenter: parent.verticalCenter
 
             hero: true

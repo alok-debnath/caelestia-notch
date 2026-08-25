@@ -5,8 +5,13 @@ import Caelestia.Config
 import qs.components
 import qs.services
 
-// The middle resting page: the time, and nothing else.
-SlidingLayer {
+// The clock, when it is the only thing there is.
+//
+// Normally the time is drawn by whichever resting page is mounted -- the strip
+// hands it back and forth as you swipe (see RestingPage). This layer is the
+// fallback for a notch with both side pages turned off: then there is no page
+// to carry the clock, and it needs one of its own.
+Item {
     id: root
 
     // A dot while the screen is being recorded, as Tide has it: small enough
@@ -43,30 +48,11 @@ SlidingLayer {
         }
     }
 
-    // Time.timeStr joins its parts with colons so callers can split them;
-    // the notch wants a readable string, and amPmStr is empty on 24h.
-    readonly property string timeText: Time.amPmStr ? `${Time.hourStr}:${Time.minuteStr} ${Time.amPmStr}` : `${Time.hourStr}:${Time.minuteStr}`
-
-    // One character per glyph, so the minute-tick only fades the digit that
-    // actually changed. A single Text bound to the whole string re-animates
-    // top to bottom every tick, which is the "refreshes the whole clock"
-    // judder Tide never had.
-    Row {
+    ClockText {
         id: label
 
         anchors.centerIn: parent
-        spacing: 0
 
-        Repeater {
-            model: root.timeText.length
-
-            IslandText {
-                required property int index
-
-                hero: true
-                animate: true
-                text: root.timeText[index] ?? ""
-            }
-        }
+        text: Time.amPmStr ? `${Time.hourStr}:${Time.minuteStr} ${Time.amPmStr}` : `${Time.hourStr}:${Time.minuteStr}`
     }
 }

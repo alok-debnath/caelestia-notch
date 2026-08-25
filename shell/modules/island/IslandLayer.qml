@@ -38,6 +38,7 @@ Loader {
     anchors.centerIn: anchorTop ? undefined : parent
     anchors.top: anchorTop ? parent.top : undefined
     anchors.horizontalCenter: anchorTop ? parent.horizontalCenter : undefined
+    anchors.horizontalCenterOffset: slideOffset
 
     width: island.targetWidth
     height: island.targetHeight
@@ -50,28 +51,79 @@ Loader {
     visible: opacity > 0
 
     opacity: shouldShow ? 1 : 0
-    scale: shouldShow ? 1 : 0.94
+    // A side transient is already moving a whole box width; scaling it as well
+    // reads as two effects on one object.
+    scale: shouldShow || entrySide !== 0 ? 1 : 0.97
 
-    onShouldShowChanged: if (!shouldShow)
-        fadeOutTimer.restart()
+    // How far off centre this layer is sitting, along whichever axis this
+    // transition travels. Driven by hand rather than by a binding on
+    // `shouldShow`, because the arriving layer and the leaving one need
+    // different signs of the same direction and a binding cannot tell which of
+    // the two it is on.
+    property real slideOffset: 0
 
+    // Which side of the strip this layer came in from, kept for its exit: by
+    // the time it leaves, the island is resting again and the window's own
+    // `transientSide` has already gone back to zero.
+    property int entrySide: 0
+
+    onShouldShowChanged: {
+        if (shouldShow)
+            entrySide = island.transientSide;
+
+        // A transient that came in off a side page travels the strip's own
+        // axis, a whole box width, and goes back out the way it came -- Tide
+        // slides it against the page it replaced. Everything else is a tab
+        // switch: a short shift along the switcher's order, and the leaver
+        // exits opposite the arriver.
+        const side = entrySide !== 0;
+        const distance = side ? entrySide * (width + IslandTokens.hiddenPadding) : island.switchDirection * IslandTokens.contentSlideDistance;
+
+        slide.duration = side ? IslandTokens.swipeDuration : IslandTokens.contentSlideDuration;
+        slide.easing.type = side ? Easing.OutCubic : Easing.OutQuint;
+
+        slide.stop();
+        if (shouldShow) {
+            slideOffset = distance;
+            slide.to = 0;
+        } else {
+            fadeOutTimer.restart();
+            slide.to = side ? distance : -distance;
+        }
+        slide.restart();
+    }
+
+    NumberAnimation {
+        id: slide
+
+        target: root
+        property: "slideOffset"
+        duration: IslandTokens.contentSlideDuration
+        easing.type: Easing.OutQuint
+    }
+
+    // A side transient fades on the strip's own clock and curve, so the fade
+    // and the slide finish together; everything else keeps the crossfade the
+    // panels are tuned for.
     Behavior on opacity {
         NumberAnimation {
-            duration: root.shouldShow ? IslandTokens.contentFadeDuration : IslandTokens.contentFadeOutDuration
-            easing.type: root.shouldShow ? Easing.OutQuad : Easing.InQuad
+            duration: root.entrySide !== 0 ? (root.shouldShow ? 280 : 200) : (root.shouldShow ? IslandTokens.contentFadeDuration : IslandTokens.contentFadeOutDuration)
+            easing.type: root.entrySide !== 0 ? Easing.InOutQuad : (root.shouldShow ? Easing.OutCubic : Easing.InCubic)
         }
     }
 
     Behavior on scale {
         NumberAnimation {
-            duration: root.shouldShow ? IslandTokens.contentFadeDuration : IslandTokens.contentFadeOutDuration
-            easing.type: Easing.OutQuad
+            duration: root.shouldShow ? IslandTokens.contentSlideDuration : IslandTokens.contentFadeOutDuration
+            easing.type: root.shouldShow ? Easing.OutQuint : Easing.InQuad
         }
     }
 
     Timer {
         id: fadeOutTimer
 
-        interval: IslandTokens.contentFadeOutDuration
+        // Outlives the fade itself, so the leaving layer is still mounted for
+        // the whole of its slide rather than blinking out halfway through it.
+        interval: IslandTokens.contentSlideDuration
     }
 }

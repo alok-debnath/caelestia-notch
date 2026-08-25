@@ -26,9 +26,34 @@ Singleton {
         Auto
     }
 
+    // The island's typeface. Tide's own is Inter Display -- see IslandText for
+    // why the island does not simply use the shell's.
+    property alias fontFamily: adapter.fontFamily
+
+    // What a click on the capsule opens, per button. Tide binds surfaces to
+    // clicks rather than to a strip of tabs -- see IslandWindow.runAction for
+    // the names.
+    property alias clickAction: adapter.clickAction
+    property alias rightClickAction: adapter.rightClickAction
+    property alias middleClickAction: adapter.middleClickAction
+
     property alias hoverAction: adapter.hoverAction
     property alias hoverExpandDelay: adapter.hoverExpandDelay
     property alias hoverCollapseDelay: adapter.hoverCollapseDelay
+
+    // What the left resting page shows, in order. Tide's own set of readings:
+    // time, date, battery, volume, brightness, workspace, cpu, ram, storage,
+    // cava. See StripItem for what each draws.
+    property alias leftItems: adapter.leftItems
+
+    // Applications pinned to the front of the launcher strip, in the order
+    // they were starred. Desktop entry ids.
+    property alias favourites: adapter.favourites
+
+    // The overview's grid. Tide's map is a fixed block of cells -- workspace 4
+    // is always in the same place -- and these are its dimensions.
+    property alias overviewRows: adapter.overviewRows
+    property alias overviewColumns: adapter.overviewColumns
 
     // Resting pages either side of the clock.
     property alias datePage: adapter.datePage
@@ -52,6 +77,10 @@ Singleton {
     property alias notifications: adapter.notifications
     property alias osd: adapter.osd
 
+    // The Bluetooth announcement panel: a device connecting shows what it is,
+    // its battery and the volume, for a couple of seconds.
+    property alias bluetooth: adapter.bluetooth
+
     // The face-scan capsule. Off does not disable face unlock -- it only stops
     // the notch showing it.
     property alias faceId: adapter.faceId
@@ -72,9 +101,22 @@ Singleton {
         JsonAdapter {
             id: adapter
 
+            property string fontFamily: "Inter Display"
+
+            property string clickAction: "player"
+            property string rightClickAction: "overview"
+            property string middleClickAction: "notifications"
+
             property int hoverAction: IslandConfig.HoverAction.Auto
             property int hoverExpandDelay: 350
             property int hoverCollapseDelay: 250
+
+            property list<string> leftItems: ["date", "battery", "cava"]
+
+            property list<string> favourites: []
+
+            property int overviewRows: 2
+            property int overviewColumns: 4
 
             property bool datePage: true
             property bool mediaPage: true
@@ -92,6 +134,7 @@ Singleton {
 
             property bool notifications: true
             property bool osd: true
+            property bool bluetooth: true
             property bool faceId: true
         }
     }

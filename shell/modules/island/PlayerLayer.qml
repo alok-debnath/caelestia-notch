@@ -1,15 +1,17 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Layouts
 import Quickshell.Services.Mpris
 import Caelestia.Config
 import qs.components
-import qs.components.controls
 import qs.services
 
-// Now playing, at Tide's expanded size: 410 by 165, 20px margins, a 60px cover,
-// the scrubber, and the transport centred under it.
+// The expanded panel, at Tide's size: 410 by 190, and two pages wide.
+//
+// Page one is what is playing -- cover, track, the level strip, a scrubber you
+// can drag, and the transport under it. Page two is Tide's kitchen timer. They
+// are one strip that slides, not a stack that swaps: drag anywhere on the
+// panel that is not a control, or use the two dots.
 //
 // This is what hovering the notch opens, so the island's other views hang off
 // the corner of it rather than off a click on the capsule.
@@ -19,6 +21,20 @@ SlidingLayer {
     required property var island
 
     readonly property MprisPlayer player: Players.active
+    readonly property bool playing: player?.isPlaying ?? false
+
+    // 0 on the player, 1 on the timer, fractional under a drag.
+    property real pageProgress: 0
+    property int currentPage: 0
+
+    readonly property real page: Math.max(0, Math.min(1, pageProgress))
+    readonly property real pageTravel: Math.max(1, width + 24)
+
+    function settlePage(target: int): void {
+        currentPage = Math.max(0, Math.min(1, target));
+        pageSettle.to = currentPage;
+        pageSettle.restart();
+    }
 
     function formatTime(seconds: real): string {
         if (!isFinite(seconds) || seconds <= 0)
@@ -30,156 +46,313 @@ SlidingLayer {
 
     // MPRIS position does not tick on its own; the shell has to ask.
     readonly property Timer positionTimer: Timer {
-        running: root.player?.isPlaying ?? false
+        running: (root.player?.isPlaying ?? false) && root.page < 0.5
         repeat: true
         interval: 1000
         onTriggered: root.player?.positionChanged()
     }
 
-    ColumnLayout {
+    readonly property NumberAnimation pageSettle: NumberAnimation {
+        target: root
+        property: "pageProgress"
+        duration: IslandTokens.morphDuration
+        easing.type: Easing.OutQuint
+    }
+
+    // The page drag. Below everything, so a press on a button is a button
+    // press; a press anywhere else can still pull the strip across.
+    MouseArea {
         anchors.fill: parent
-        // Fixed, not Tokens.padding/spacing: those are scaled for the bar's
-        // full-size popups and overflowed this fixed 165px capsule, pushing
-        // the transport row into the bottom corner radius. IslandTokens'
-        // horizontalPadding/contentSpacing are sized for swipe pages, not a
-        // three-row panel, so this stays a literal 20px per the layout this
-        // panel was built to (see file header).
-        anchors.margins: 20
-        spacing: 10
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Tokens.spacing.large
+        property real startX: 0
+        property real startProgress: 0
+        property bool moved: false
 
-            StyledClippingRect {
-                implicitWidth: 60
-                implicitHeight: 60
-                radius: Tokens.rounding.large
-                color: Colours.palette.m3surfaceContainerHigh
-
-                Image {
-                    anchors.fill: parent
-
-                    source: Players.getArtUrl(root.player)
-                    fillMode: Image.PreserveAspectCrop
-                    sourceSize.width: 120
-                    sourceSize.height: 120
-                    asynchronous: true
-                    visible: status === Image.Ready
-                }
-
-                MaterialIcon {
-                    anchors.centerIn: parent
-
-                    text: "music_note"
-                    color: Colours.palette.m3onSurfaceVariant
-                    fontStyle: Tokens.font.icon.builders.large.build()
-                    visible: !Players.getArtUrl(root.player)
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: Tokens.spacing.extraSmall
-
-                IslandText {
-                    Layout.fillWidth: true
-
-                    animate: true
-                    text: root.player?.trackTitle || qsTr("Nothing playing")
-                    elide: Text.ElideRight
-                }
-
-                IslandText {
-                    Layout.fillWidth: true
-
-                    dim: true
-                    animate: true
-                    text: root.player?.trackArtist || qsTr("Try playing something")
-                    elide: Text.ElideRight
-                }
-            }
-
+        onPressed: mouse => {
+            pageSettle.stop();
+            startX = mouse.x;
+            startProgress = root.page;
+            moved = false;
         }
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Tokens.spacing.small
+        onPositionChanged: mouse => {
+            if (!pressed)
+                return;
+            const dx = mouse.x - startX;
+            moved = moved || Math.abs(dx) > 8;
+            root.pageProgress = Math.max(0, Math.min(1, startProgress - dx / root.pageTravel));
+        }
 
-            IslandText {
-                dim: true
-                font.pixelSize: IslandTokens.bodyPixelSize - 4
-                text: root.formatTime(root.player?.position ?? 0)
+        onReleased: {
+            if (!moved) {
+                root.settlePage(root.currentPage);
+                return;
             }
+            // Tide's thresholds: a fifth of the way over commits, coming back
+            // needs the same fifth in the other direction.
+            if (root.currentPage === 0)
+                root.settlePage(root.page > 0.22 ? 1 : 0);
+            else
+                root.settlePage(root.page < 0.78 ? 0 : 1);
+        }
 
-            StyledRect {
-                Layout.fillWidth: true
+        onCanceled: root.settlePage(root.currentPage)
+    }
 
-                implicitHeight: 6
-                radius: Tokens.rounding.full
-                color: Colours.palette.m3surfaceContainerHighest
+    // -- Page one: now playing ------------------------------------------
+    Item {
+        anchors.fill: parent
 
-                StyledRect {
+        x: root.page * root.pageTravel
+        opacity: 1 - root.page
+        enabled: opacity > 0.001
+
+        Column {
+            anchors.fill: parent
+            // Fixed, not Tokens.padding/spacing: those are scaled for the
+            // bar's full-size popups and overflow this fixed capsule. These
+            // are Tide's own panel metrics.
+            anchors.margins: 20
+            anchors.topMargin: IslandTokens.panelTopReserve
+
+            spacing: 14
+
+            Item {
+                width: parent.width
+                height: 60
+
+                Row {
                     anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
+                    anchors.verticalCenter: parent.verticalCenter
 
-                    implicitWidth: parent.width * Math.max(0, Math.min(1, (root.player?.length ?? 0) > 0 ? (root.player?.position ?? 0) / root.player.length : 0))
-                    radius: Tokens.rounding.full
-                    color: Colours.palette.m3primary
+                    spacing: 16
 
-                    Behavior on implicitWidth {
-                        NumberAnimation {
-                            duration: 500
-                            easing.type: Easing.OutCubic
+                    StyledClippingRect {
+                        implicitWidth: 60
+                        implicitHeight: 60
+                        radius: 14
+                        color: Colours.palette.m3surfaceContainerHigh
+
+                        Image {
+                            anchors.fill: parent
+
+                            source: Players.getArtUrl(root.player)
+                            fillMode: Image.PreserveAspectCrop
+                            sourceSize.width: 120
+                            sourceSize.height: 120
+                            asynchronous: true
+                            visible: status === Image.Ready
+                        }
+
+                        MaterialIcon {
+                            anchors.centerIn: parent
+
+                            text: "music_note"
+                            color: Colours.palette.m3onSurfaceVariant
+                            fontStyle: Tokens.font.icon.builders.large.build()
+                            visible: !Players.getArtUrl(root.player)
+                        }
+                    }
+
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        spacing: 4
+
+                        IslandRollText {
+                            width: 180
+
+                            text: root.player?.trackTitle || qsTr("Nothing playing")
+                            elide: Text.ElideRight
+                        }
+
+                        IslandRollText {
+                            width: 180
+
+                            dim: true
+                            text: root.player?.trackArtist || qsTr("Try playing something")
+                            elide: Text.ElideRight
                         }
                     }
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: root.player?.canSeek ?? false
-                    onClicked: event => {
-                        if (root.player?.length > 0)
-                            root.player.position = root.player.length * (event.x / width);
+                // The level strip, where Tide puts it: hard right of the
+                // track, small enough to read as a state rather than as a
+                // control. Real cava, not the sine wave Tide draws -- the
+                // shell already has the spectrum.
+                CavaBars {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    visible: IslandConfig.visualiser
+
+                    barCount: 5
+                    barWidth: 4
+                    barSpacing: 4
+                    minBarHeight: 6
+                    barColour: root.playing ? Colours.palette.m3primary : Colours.palette.m3outline
+
+                    implicitHeight: 22
+                }
+            }
+
+            // The scrubber. Tide draws a bar; this one seeks, because the
+            // island is the only place in the shell that shows it.
+            Item {
+                width: parent.width
+                height: 16
+
+                IslandText {
+                    id: elapsed
+
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    dim: true
+                    text: root.formatTime(root.player?.position ?? 0)
+                    font.pixelSize: IslandTokens.bodyPixelSize - 4
+                }
+
+                IslandText {
+                    id: total
+
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    dim: true
+                    text: root.formatTime(root.player?.length ?? 0)
+                    font.pixelSize: IslandTokens.bodyPixelSize - 4
+                }
+
+                Item {
+                    id: track
+
+                    anchors.left: elapsed.right
+                    anchors.right: total.left
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    height: 16
+
+                    readonly property real fraction: {
+                        const length = root.player?.length ?? 0;
+                        if (length <= 0)
+                            return 0;
+                        return Math.max(0, Math.min(1, (root.player?.position ?? 0) / length));
+                    }
+
+                    StyledRect {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        implicitHeight: 6
+                        radius: height / 2
+                        color: Colours.palette.m3surfaceContainerHighest
+
+                        StyledRect {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            implicitWidth: parent.width * (seek.pressed ? seek.dragFraction : track.fraction)
+                            implicitHeight: parent.height
+                            radius: height / 2
+                            color: Colours.palette.m3primary
+
+                            Behavior on implicitWidth {
+                                enabled: !seek.pressed
+
+                                NumberAnimation {
+                                    duration: 500
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: seek
+
+                        anchors.fill: parent
+
+                        property real dragFraction: 0
+
+                        enabled: root.player?.canSeek ?? false
+                        preventStealing: true
+
+                        function fractionAt(x: real): real {
+                            return Math.max(0, Math.min(1, x / Math.max(1, width)));
+                        }
+
+                        onPressed: mouse => dragFraction = fractionAt(mouse.x)
+                        onPositionChanged: mouse => {
+                            if (pressed)
+                                dragFraction = fractionAt(mouse.x);
+                        }
+                        onReleased: mouse => {
+                            const length = root.player?.length ?? 0;
+                            if (length > 0 && root.player)
+                                root.player.position = fractionAt(mouse.x) * length;
+                        }
                     }
                 }
             }
 
-            IslandText {
-                dim: true
-                font.pixelSize: IslandTokens.bodyPixelSize - 4
-                text: root.formatTime(root.player?.length ?? 0)
+            // The transport. Tide's spacing, and Tide's press: the glyph
+            // shrinks under the finger rather than lighting up behind it.
+            Item {
+                width: parent.width
+                height: 36
+
+                Row {
+                    anchors.centerIn: parent
+
+                    spacing: 50
+
+                    TransportButton {
+                        icon: "skip_previous"
+                        enabled: root.player?.canGoPrevious ?? false
+                        onTriggered: root.player?.previous()
+                    }
+
+                    TransportButton {
+                        icon: root.playing ? "pause" : "play_arrow"
+                        enabled: root.player?.canTogglePlaying ?? false
+                        onTriggered: root.player?.togglePlaying()
+                    }
+
+                    TransportButton {
+                        icon: "skip_next"
+                        enabled: root.player?.canGoNext ?? false
+                        onTriggered: root.player?.next()
+                    }
+                }
             }
         }
+    }
 
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: Tokens.spacing.extraLarge
+    // -- Page two: the timer ---------------------------------------------
+    TimerPage {
+        anchors.fill: parent
 
-            IconButton {
-                icon: "skip_previous"
-                type: IconButton.Text
-                font: Tokens.font.icon.large
-                disabled: !(root.player?.canGoPrevious ?? false)
-                onClicked: root.player?.previous()
-            }
+        x: -(1 - root.page) * root.pageTravel
+        opacity: root.page
+        enabled: opacity > 0.001
+    }
 
-            IconButton {
-                icon: root.player?.isPlaying ? "pause" : "play_arrow"
-                type: IconButton.Text
-                font: Tokens.font.icon.large
-                disabled: !(root.player?.canTogglePlaying ?? false)
-                onClicked: root.player?.togglePlaying()
-            }
+    // Which page you are on, and how to get to the other one. Same row the
+    // panels use for their own tabs -- see PageDots.
+    PageDots {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: IslandTokens.dotsMargin
 
-            IconButton {
-                icon: "skip_next"
-                type: IconButton.Text
-                font: Tokens.font.icon.large
-                disabled: !(root.player?.canGoNext ?? false)
-                onClicked: root.player?.next()
-            }
-        }
+        count: 2
+        position: root.page
+        labels: [qsTr("Now playing"), qsTr("Timer")]
+        travel: root.pageTravel / 3
+
+        onSelected: index => root.settlePage(index)
     }
 }

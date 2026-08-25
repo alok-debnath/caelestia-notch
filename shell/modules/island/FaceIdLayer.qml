@@ -48,7 +48,7 @@ SlidingLayer {
             colour: root.accent
         }
 
-        IslandText {
+        IslandRollText {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
 

@@ -38,8 +38,13 @@ QtObject {
     // screen, so a long summary/body with no natural break stretched the
     // notch out to match instead of wrapping.
     readonly property real notifMinWidth: 272
-    readonly property real notifMaxWidth: 420
+    readonly property real notifMaxWidth: 520
     readonly property real notifMinHeight: 56
+    // Tide's two notification sizes: one line up to 400 wide, and the expanded
+    // one at 520 by up to 240 with the body scrollable inside it.
+    readonly property real notifCompactWidth: 400
+    readonly property real notifExpandedWidth: 520
+    readonly property real notifExpandedHeight: 240
 
     // Panels.
     readonly property real playerWidth: 410
@@ -53,15 +58,6 @@ QtObject {
     readonly property real shelfHeight: 260
     readonly property real shelfCardWidth: 130
     readonly property real clipboardHeight: 420
-
-    // The panel switcher pill: fixed size so it lands at the same spot
-    // regardless of which panel is open. Deliberately tiny -- it is a tab
-    // strip, not a control, and shouldn't compete with the panel under it
-    // for attention. `switcherReserve` is what every panel leaves empty at
-    // its own top so the pill (which floats above the panel content, not
-    // inside its layout) never overlaps it.
-    readonly property real switcherHeight: 24
-    readonly property real switcherReserve: 4
 
     // Search. The notch becomes the field and Caelestia's launcher hangs below
     // it, so the list's own sizes apply -- these are only the fallback width
@@ -87,11 +83,30 @@ QtObject {
     // ~400+ "expressive" scale on purpose -- this is a small fixed-size
     // shape morphing a few hundred pixels at most, not a full-screen
     // transition, and reads as sluggish at the larger durations that suit
-    // those.
-    readonly property int morphDuration: 320
+    // those. 400 is Tide's own number, restored after a pass comparing the
+    // two side by side: the shorter morph won on paper and lost in the hand --
+    // the capsule arrived before the content had begun to settle.
+    readonly property int morphDuration: 400
     readonly property int swipeDuration: 220
-    readonly property int contentFadeDuration: 150
-    readonly property int contentFadeOutDuration: 140
+    // Layers crossfade rather than take turns: the outgoing one is gone well
+    // before the incoming one has finished arriving, so the two always overlap
+    // and a switch between two panels never shows an empty capsule. The
+    // incoming layer is the slower of the two on purpose -- it is the one being
+    // read, and it settles under the shape morph rather than beating it.
+    readonly property int contentFadeDuration: 190
+    readonly property int contentFadeOutDuration: 120
+
+    // Panels also travel along the switcher's axis: a tab to the right arrives
+    // from the right while the one it replaces leaves to the left. Small --
+    // this is a hint about which way you moved, not a page transition.
+    readonly property real contentSlideDistance: 16
+    readonly property int contentSlideDuration: 300
+
+    // Text swaps: see IslandRollText. Out faster than in, for the same reason
+    // the layers are.
+    readonly property int textRollInDuration: 240
+    readonly property int textRollOutDuration: 140
+    readonly property real textRollTravel: 0.9
 
     // -- Hold times -------------------------------------------------------
     readonly property int splitHideDelay: 1250
@@ -120,12 +135,42 @@ QtObject {
     readonly property int iconPixelSize: 18
     readonly property real heroLetterSpacing: -0.35
     readonly property real bodyLetterSpacing: -0.15
+    // The time on a swipe page, which Tide sets a shade larger and tighter
+    // than body text so it still reads as the clock at page scale.
+    readonly property int timePixelSize: 17
+    readonly property real timeLetterSpacing: -0.25
+
+    // -- Panels -----------------------------------------------------------
+    // One padding for every panel, kept minimal: the capsule is already a
+    // generous shape and a second inset inside it wastes the only space the
+    // island has. `panelTopReserve` is what each panel leaves clear at its top
+    // for the tab row, which is pinned there on every surface so it is always
+    // in the same place.
+    readonly property real panelPadding: 14
+    readonly property real dotsMargin: 6
+    readonly property real dotsHeight: 18
+    // What the row grows to when the pointer opens it into the names. The
+    // reserve clears *that*, not the closed height: sized to the dots, the
+    // open row lands on the first line of a panel.
+    readonly property real dotsOpenHeight: 26
+    readonly property real panelTopReserve: dotsMargin + dotsOpenHeight + 6
 
     // -- Content ----------------------------------------------------------
     readonly property real horizontalPadding: 16
     readonly property real verticalPadding: 8
     readonly property real contentSpacing: 6
     readonly property real hiddenPadding: 16
+
+    // The resting strip. Tide swipes by moving *content* through one box
+    // rather than by sliding whole pages past each other: the clock leaves by
+    // one edge as the page's own content arrives from the other, and the two
+    // are never both centred. These are the paddings that math runs on -- a
+    // page's content is hidden one `swipeHiddenPadding` past the edge, so it
+    // is fully gone before the capsule has finished narrowing.
+    readonly property real pagePadding: 14
+    readonly property real swipeHiddenPadding: 18
+    // Between the cover, the line and the bars on the media page.
+    readonly property real pageVisualSpacing: 35
 
     readonly property real artSize: 44
     readonly property real smallArtSize: 26
