@@ -19,11 +19,10 @@ Singleton {
     //
     // Auto is the useful one and the default: the player while something is
     // playing, so hovering whatever is on the media page gives you its
-    // controls, and the control centre the rest of the time.
+    // controls, and notification history the rest of the time.
     enum HoverAction {
         None,
         Player,
-        Control,
         Auto
     }
 

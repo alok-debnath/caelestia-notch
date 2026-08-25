@@ -38,8 +38,7 @@ QtObject {
     // Panels.
     readonly property real playerWidth: 410
     readonly property real playerHeight: 190
-    readonly property real controlWidth: 420
-    readonly property real controlHeight: 400
+    readonly property real overviewWidth: 760
     readonly property real panelWidth: 410
     readonly property real notifCenterMaxHeight: 420
     readonly property real notifCenterListHeight: 300
@@ -47,6 +46,15 @@ QtObject {
     readonly property real shelfWidth: 1100
     readonly property real shelfHeight: 260
     readonly property real shelfCardWidth: 130
+
+    // The panel switcher pill: fixed size so it lands at the same spot
+    // regardless of which panel is open. Deliberately tiny -- it is a tab
+    // strip, not a control, and shouldn't compete with the panel under it
+    // for attention. `switcherReserve` is what every panel leaves empty at
+    // its own top so the pill (which floats above the panel content, not
+    // inside its layout) never overlaps it.
+    readonly property real switcherHeight: 24
+    readonly property real switcherReserve: 4
 
     // Search. The notch becomes the field and Caelestia's launcher hangs below
     // it, so the list's own sizes apply -- these are only the fallback width
@@ -66,10 +74,14 @@ QtObject {
     readonly property real panelRadius: 34
 
     // -- Motion -----------------------------------------------------------
-    // 400ms OutQuint on width, height and radius: quick to start with a long
+    // OutQuint on width, height and radius: quick to start with a long
     // settle. Everything else in the island is faster than the morph, so the
-    // shape leads and the content follows.
-    readonly property int morphDuration: 400
+    // shape leads and the content follows. 320ms rather than Material's
+    // ~400+ "expressive" scale on purpose -- this is a small fixed-size
+    // shape morphing a few hundred pixels at most, not a full-screen
+    // transition, and reads as sluggish at the larger durations that suit
+    // those.
+    readonly property int morphDuration: 320
     readonly property int swipeDuration: 220
     readonly property int contentFadeDuration: 150
     readonly property int contentFadeOutDuration: 140

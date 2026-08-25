@@ -100,13 +100,6 @@ SlidingLayer {
                 }
             }
 
-            // The island's other views, kept out of the way in the corner. The
-            // capsule itself stays click-free.
-            IslandActions {
-                Layout.alignment: Qt.AlignTop
-
-                island: root.island
-            }
         }
 
         RowLayout {

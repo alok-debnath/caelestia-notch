@@ -24,10 +24,6 @@ PageBase {
             icon: "music_note"
         },
         MenuItem {
-            text: qsTr("Control centre")
-            icon: "tune"
-        },
-        MenuItem {
             text: qsTr("Whichever fits")
             icon: "auto_awesome"
         }

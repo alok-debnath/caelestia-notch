@@ -21,6 +21,7 @@ Item {
     required property real scaleFactor
     required property real originX
     required property real originY
+    property bool live: true
 
     signal activated
 
@@ -45,7 +46,7 @@ Item {
             anchors.fill: parent
 
             captureSource: root.client?.wayland ?? null // qmllint disable unresolved-type
-            live: OverviewState.visible
+            live: root.live
         }
 
         // Fallback for anything that will not capture -- xwayland windows that

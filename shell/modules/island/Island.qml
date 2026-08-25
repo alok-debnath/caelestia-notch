@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import qs.modules.island.overview
 import qs.services
 
 // One notch per screen.
@@ -39,7 +38,7 @@ Scope {
         }
 
         function overview(): void {
-            OverviewState.toggle();
+            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Overview));
         }
 
         function toggleShelf(): void {
@@ -56,10 +55,6 @@ Scope {
 
         function toggleSearch(): void {
             root.forActiveWindow(w => w.toggleSearch());
-        }
-
-        function toggleControlCenter(): void {
-            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Control));
         }
 
         // The resting pages, for anyone who would rather bind a key than swipe.

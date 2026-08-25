@@ -26,6 +26,12 @@ SlidingLayer {
 
         spacing: Tokens.spacing.small
 
+        // Reserves the space IslandSwitcher floats above, fixed at the top of
+        // every panel -- see IslandTokens.switcherReserve.
+        Item {
+            Layout.preferredHeight: IslandTokens.switcherReserve
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: Tokens.spacing.small
@@ -162,12 +168,6 @@ SlidingLayer {
                     }
                 }
             }
-        }
-
-        IslandActions {
-            Layout.alignment: Qt.AlignHCenter
-
-            island: root.island
         }
     }
 }

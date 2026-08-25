@@ -10,7 +10,6 @@ import "modules/background"
 import "modules/areapicker"
 import "modules/lock"
 import "modules/island"
-import "modules/island/overview"
 import QtQuick
 import Quickshell
 import qs.services
@@ -37,8 +36,6 @@ ShellRoot {
     }
 
     Island {}
-
-    Overview {}
 
     ConfigToasts {}
     Shortcuts {}

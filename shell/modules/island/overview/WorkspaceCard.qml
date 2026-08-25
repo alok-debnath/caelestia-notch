@@ -19,6 +19,10 @@ StyledClippingRect {
     required property ShellScreen screen
     required property var clients
 
+    // Screencopy is live only while the card is actually on screen -- no point
+    // capturing windows behind a closed panel.
+    property bool capturesLive: true
+
     readonly property bool active: workspaceId === Hypr.activeWsId
     readonly property real scaleFactor: width / screen.width
     readonly property var monitor: Hypr.monitorFor(screen)
@@ -53,6 +57,7 @@ StyledClippingRect {
 
             client: modelData
             scaleFactor: root.scaleFactor
+            live: root.capturesLive
             // Window geometry is in compositor coordinates, which include the
             // monitor's own offset on a multi-head setup.
             originX: root?.monitor?.lastIpcObject.x ?? 0

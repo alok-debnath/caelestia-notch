@@ -30,10 +30,10 @@ SlidingLayer {
 
         spacing: Tokens.spacing.small
 
-        IslandActions {
-            Layout.alignment: Qt.AlignHCenter
-
-            island: root.island
+        // Reserves the space IslandSwitcher floats above, fixed at the top of
+        // every panel -- see IslandTokens.switcherReserve.
+        Item {
+            Layout.preferredHeight: IslandTokens.switcherReserve
         }
 
         Item {

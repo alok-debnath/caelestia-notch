@@ -33,7 +33,7 @@ StyledWindow {
         Player,       // panel: now playing
         Calendar,     // panel: calendar
         Performance,  // panel: system resources
-        Control,      // panel: control centre
+        Overview,     // panel: workspace overview
         NotifCenter,  // panel: notification history
         Shelf,        // panel: the file shelf
         Search        // panel: the notch as a search field
@@ -92,18 +92,23 @@ StyledWindow {
         if (osd.showing && IslandConfig.osd)
             return IslandWindow.State.Split;
         if (hoverExpanded) {
-            if (IslandConfig.hoverAction === IslandConfig.HoverAction.Control)
-                return IslandWindow.State.Control;
             if (IslandConfig.hoverAction === IslandConfig.HoverAction.Player)
                 return IslandWindow.State.Player;
-            // Auto: the player when there is something to control, and the
-            // control centre when there is not.
-            return Players.active ? IslandWindow.State.Player : IslandWindow.State.Control;
+            // Auto: the player when there is something to control, and
+            // notification history the rest of the time.
+            return Players.active ? IslandWindow.State.Player : IslandWindow.State.NotifCenter;
         }
         return resting;
     }
 
     readonly property bool isResting: islandState === IslandWindow.State.Normal || islandState === IslandWindow.State.Custom || islandState === IslandWindow.State.Lyrics
+
+    // Whether the switcher pill should be showing: any state it can actually
+    // switch between, whether that state was reached by an explicit
+    // `openPanel()` or by the Auto hover fallback landing on NotifCenter.
+    // Keying this off `hasPanel` alone missed the hover case entirely -- the
+    // switcher just never appeared while hovering was what got you there.
+    readonly property bool showSwitcher: [IslandWindow.State.Calendar, IslandWindow.State.Performance, IslandWindow.State.NotifCenter, IslandWindow.State.Shelf, IslandWindow.State.Overview].includes(islandState)
 
     // Swiping is only offered on the resting states: a panel or a transient is
     // not a page you can slide off.
@@ -143,8 +148,8 @@ StyledWindow {
             // Wider than the other panels: every row here is a label, a
             // reading and a figure, and at panel width they start eliding.
             return IslandTokens.widePanelWidth;
-        case IslandWindow.State.Control:
-            return IslandTokens.controlWidth;
+        case IslandWindow.State.Overview:
+            return IslandTokens.overviewWidth;
         case IslandWindow.State.NotifCenter:
             return IslandTokens.panelWidth;
         case IslandWindow.State.Shelf:
@@ -170,8 +175,8 @@ StyledWindow {
             return calendarLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
         case IslandWindow.State.Performance:
             return performanceLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
-        case IslandWindow.State.Control:
-            return IslandTokens.controlHeight;
+        case IslandWindow.State.Overview:
+            return overviewLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
         case IslandWindow.State.NotifCenter:
             return notifCenterLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
         case IslandWindow.State.Shelf:
@@ -192,7 +197,7 @@ StyledWindow {
             return IslandTokens.playerRadius;
         case IslandWindow.State.Calendar:
         case IslandWindow.State.Performance:
-        case IslandWindow.State.Control:
+        case IslandWindow.State.Overview:
         case IslandWindow.State.NotifCenter:
         case IslandWindow.State.Shelf:
             return IslandTokens.panelRadius;
@@ -620,6 +625,7 @@ StyledWindow {
 
             island: root
             forState: IslandWindow.State.Search
+            anchorTop: true
 
             sourceComponent: SearchLayer {
                 island: root
@@ -627,13 +633,29 @@ StyledWindow {
         }
 
         IslandLayer {
-            island: root
-            forState: IslandWindow.State.Control
+            id: overviewLoader
 
-            sourceComponent: ControlLayer {
+            island: root
+            forState: IslandWindow.State.Overview
+
+            sourceComponent: OverviewLayer {
                 island: root
-                monitor: root.monitor
             }
+        }
+
+        // Fixed above every panel's own content, not inside any one panel's
+        // layout: see IslandSwitcher.qml and IslandTokens.switcherReserve.
+        // No fade here on purpose: this sits on top of whichever other layer
+        // is active, and an animated show/hide left a ghost frame of the pill
+        // visible over a transient notification toast that pre-empted it
+        // mid-fade. It should be there or not, on the same frame the content
+        // under it changes.
+        IslandSwitcher {
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            y: Tokens.padding.small
+            island: root
+            visible: root.showSwitcher
         }
     }
 
@@ -641,11 +663,15 @@ StyledWindow {
     // own grab used to. It is here rather than on the drawers window because the
     // notch is a different surface: that grab would count a click on the island
     // itself as a click outside.
+    // Also grabbed for an open panel, not just search: focus moving to
+    // another window -- clicking it, alt-tabbing to it -- clears the grab and
+    // closes whatever the notch had open, the same "click away closes it"
+    // behaviour search already had. Interactions within this window itself
+    // (the switcher pill included) don't count as losing focus.
     HyprlandFocusGrab {
-        active: root.searchOpen
+        active: root.searchOpen || root.hasPanel
         windows: [root]
-        onCleared: if (root.screenState)
-            root.screenState.launcher = false
+        onCleared: root.close()
     }
 
     OsdWatcher {

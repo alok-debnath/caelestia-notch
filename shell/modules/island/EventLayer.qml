@@ -8,8 +8,9 @@ import qs.services
 
 // The long capsule: one line about something that just changed.
 //
-// Workspace switches are the case Tide built it for, and they keep its
-// treatment -- the number you landed on, with a dot per workspace. Everything
+// Workspace switches just say "Workspace N" -- no dot-per-workspace
+// indicator, since the number already says where you landed and the row of
+// dots was one more thing to parse for the same information. Everything
 // else is an icon and a phrase.
 SlidingLayer {
     id: root
@@ -41,52 +42,15 @@ SlidingLayer {
         }
 
         IslandText {
-            Layout.alignment: Qt.AlignVCenter
-
-            hero: true
-            animate: true
-            text: `${Hypr.activeWsId}`
-            color: Colours.palette.m3primary
-            visible: root.isWorkspace
-        }
-
-        IslandText {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
 
-            text: root.detail.length > 0 ? `${root.title} · ${root.detail}` : root.title
+            hero: root.isWorkspace
+            animate: root.isWorkspace
+            text: root.isWorkspace ? `${root.title} ${Hypr.activeWsId}` : (root.detail.length > 0 ? `${root.title} · ${root.detail}` : root.title)
+            color: root.isWorkspace ? Colours.palette.m3primary : Colours.palette.m3onSurface
             elide: Text.ElideRight
-            horizontalAlignment: root.isWorkspace ? Text.AlignLeft : Text.AlignHCenter
-        }
-
-        RowLayout {
-            Layout.alignment: Qt.AlignVCenter
-
-            spacing: Tokens.spacing.extraSmall
-            visible: root.isWorkspace
-
-            Repeater {
-                // Only the workspaces on this monitor, and never the special
-                // ones -- they are not somewhere you switch to in sequence.
-                model: [...Hypr.workspaces.values].filter(w => !w.name.startsWith("special:") && w.monitor === Hypr.focusedMonitor).sort((a, b) => a.id - b.id)
-
-                StyledRect {
-                    required property var modelData
-
-                    readonly property bool active: modelData.id === Hypr.activeWsId
-
-                    Layout.alignment: Qt.AlignVCenter
-
-                    implicitWidth: active ? Tokens.padding.large : Tokens.padding.small
-                    implicitHeight: Tokens.padding.small
-                    radius: Tokens.rounding.full
-                    color: active ? Colours.palette.m3primary : Colours.palette.m3outlineVariant
-
-                    Behavior on implicitWidth {
-                        Anim {}
-                    }
-                }
-            }
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 }
