@@ -30,7 +30,7 @@ SlidingLayer {
     readonly property bool hasImage: (notif?.image.length ?? 0) > 0
     readonly property bool isCritical: notif?.urgency === NotificationUrgency.Critical
 
-    readonly property real preferredWidth: Math.max(IslandTokens.notifMinWidth, Math.min(maximumWidth, metrics.advanceWidth + IslandTokens.artSize + IslandTokens.horizontalPadding * 4))
+    readonly property real preferredWidth: Math.max(IslandTokens.notifMinWidth, Math.min(maximumWidth, IslandTokens.notifMaxWidth, metrics.advanceWidth + IslandTokens.artSize + IslandTokens.horizontalPadding * 4))
 
     implicitWidth: preferredWidth
     implicitHeight: Math.max(IslandTokens.notifMinHeight, layout.implicitHeight + IslandTokens.verticalPadding * 2)

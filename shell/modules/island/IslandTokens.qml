@@ -31,8 +31,14 @@ QtObject {
     readonly property real swipeMinWidth: 220
     readonly property real swipeSideMargin: 48
 
-    // Notifications size to their content between these.
+    // Notifications size to their content between these. `notifMaxWidth` is
+    // a real cap, not just "whatever fits the screen" -- the width the
+    // layer asks for is passed `root.width - swipeSideMargin` as its own
+    // ceiling (see IslandWindow.qml), which on a wide screen is most of the
+    // screen, so a long summary/body with no natural break stretched the
+    // notch out to match instead of wrapping.
     readonly property real notifMinWidth: 272
+    readonly property real notifMaxWidth: 420
     readonly property real notifMinHeight: 56
 
     // Panels.
@@ -46,6 +52,7 @@ QtObject {
     readonly property real shelfWidth: 1100
     readonly property real shelfHeight: 260
     readonly property real shelfCardWidth: 130
+    readonly property real clipboardHeight: 420
 
     // The panel switcher pill: fixed size so it lands at the same spot
     // regardless of which panel is open. Deliberately tiny -- it is a tab

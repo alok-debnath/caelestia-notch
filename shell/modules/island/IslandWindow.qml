@@ -36,6 +36,7 @@ StyledWindow {
         Overview,     // panel: workspace overview
         NotifCenter,  // panel: notification history
         Shelf,        // panel: the file shelf
+        Clipboard,    // panel: clipboard history
         Search        // panel: the notch as a search field
     }
 
@@ -154,6 +155,8 @@ StyledWindow {
             return IslandTokens.panelWidth;
         case IslandWindow.State.Shelf:
             return Math.min(root.width - IslandTokens.swipeSideMargin, IslandTokens.shelfWidth);
+        case IslandWindow.State.Clipboard:
+            return IslandTokens.panelWidth;
         case IslandWindow.State.Search:
             return Math.min(root.width - IslandTokens.swipeSideMargin, searchLoader.item?.implicitWidth ?? IslandTokens.searchWidth);
         case IslandWindow.State.Custom:
@@ -181,6 +184,8 @@ StyledWindow {
             return notifCenterLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
         case IslandWindow.State.Shelf:
             return IslandTokens.shelfHeight;
+        case IslandWindow.State.Clipboard:
+            return IslandTokens.clipboardHeight;
         case IslandWindow.State.Search:
             return searchLoader.item?.implicitHeight ?? IslandTokens.searchBarHeight;
 
@@ -200,6 +205,7 @@ StyledWindow {
         case IslandWindow.State.Overview:
         case IslandWindow.State.NotifCenter:
         case IslandWindow.State.Shelf:
+        case IslandWindow.State.Clipboard:
             return IslandTokens.panelRadius;
         case IslandWindow.State.Search:
             // A pill while it is only a field, a panel once results hang off it.
@@ -605,6 +611,17 @@ StyledWindow {
             forState: IslandWindow.State.Shelf
 
             sourceComponent: ShelfLayer {
+                island: root
+            }
+        }
+
+        IslandLayer {
+            id: clipboardLoader
+
+            island: root
+            forState: IslandWindow.State.Clipboard
+
+            sourceComponent: ClipboardLayer {
                 island: root
             }
         }
