@@ -52,6 +52,10 @@ Singleton {
     property alias notifications: adapter.notifications
     property alias osd: adapter.osd
 
+    // The face-scan capsule. Off does not disable face unlock -- it only stops
+    // the notch showing it.
+    property alias faceId: adapter.faceId
+
     readonly property FileView storage: FileView {
         path: `${Paths.config}/island.json`
 
@@ -88,6 +92,7 @@ Singleton {
 
             property bool notifications: true
             property bool osd: true
+            property bool faceId: true
         }
     }
 }

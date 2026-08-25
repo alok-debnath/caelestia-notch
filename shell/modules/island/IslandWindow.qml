@@ -30,6 +30,7 @@ StyledWindow {
         Split,        // transient: an icon, or an icon and a level
         Long,         // transient: a line of text (workspace switches)
         Notification, // transient: a notification
+        FaceId,       // transient: a biopass face scan
         Player,       // panel: now playing
         Calendar,     // panel: calendar
         Performance,  // panel: system resources
@@ -88,6 +89,10 @@ StyledWindow {
             return panel;
         if (notifications.current && IslandConfig.notifications)
             return IslandWindow.State.Notification;
+        // A scan outranks the levels and the announcements: it is the answer to
+        // something the user is standing in front of the camera waiting for.
+        if (faceId.showing)
+            return IslandWindow.State.FaceId;
         if (events.showing)
             return IslandWindow.State.Long;
         if (osd.showing && IslandConfig.osd)
@@ -138,6 +143,8 @@ StyledWindow {
         case IslandWindow.State.Split:
             return osd.hasLevel ? IslandTokens.splitProgressWidth : IslandTokens.restingWidth;
         case IslandWindow.State.Long:
+            return IslandTokens.longWidth;
+        case IslandWindow.State.FaceId:
             return IslandTokens.longWidth;
         case IslandWindow.State.Notification:
             return Math.max(IslandTokens.notifMinWidth, Math.min(root.width - IslandTokens.swipeSideMargin, notifLoader.item?.implicitWidth ?? 0));
@@ -224,6 +231,12 @@ StyledWindow {
         if (p > 0)
             return IslandTokens.restingWidth + (Math.max(IslandTokens.swipeMinWidth, lyricsLoader.item?.preferredWidth ?? 0) - IslandTokens.restingWidth) * Math.min(1, p);
         return IslandTokens.restingWidth;
+    }
+
+    // A face scan has started somewhere in the session. Called from the IPC
+    // handler in Island.qml, which is what the pam_exec gate pings.
+    function beginFaceId(): void {
+        faceId.begin();
     }
 
     function openPanel(which: int): void {
@@ -498,6 +511,16 @@ StyledWindow {
 
         IslandLayer {
             island: root
+            forState: IslandWindow.State.FaceId
+
+            sourceComponent: FaceIdLayer {
+                scanning: faceId.scanning
+                result: faceId.result
+            }
+        }
+
+        IslandLayer {
+            island: root
             forState: IslandWindow.State.Long
 
             sourceComponent: EventLayer {
@@ -700,6 +723,12 @@ StyledWindow {
 
     EventWatcher {
         id: events
+
+        blocked: root.hasPanel || root.searchOpen
+    }
+
+    FaceIdWatcher {
+        id: faceId
 
         blocked: root.hasPanel || root.searchOpen
     }

@@ -95,6 +95,14 @@ QtObject {
 
     // -- Hold times -------------------------------------------------------
     readonly property int splitHideDelay: 1250
+    // A face scan's answer is held a beat longer than a volume level: it is
+    // information you asked for, not a level you were already watching change.
+    readonly property int faceIdHoldDelay: 1500
+    // The Face ID mark's own motion: one pass of the beam over the face, and
+    // how long the tick or cross takes to draw itself.
+    readonly property int faceIdSweepDuration: 900
+    readonly property int faceIdDrawDuration: 340
+    readonly property real faceIdGlyphSize: 22
     readonly property int notifHideDelay: 4200
     readonly property int bluetoothHideDelay: 2500
 

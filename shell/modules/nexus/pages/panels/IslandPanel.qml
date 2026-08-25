@@ -127,11 +127,18 @@ PageBase {
         }
 
         ToggleRow {
-            last: true
             text: qsTr("Volume and brightness")
             subtext: qsTr("Show levels in the notch")
             checked: IslandConfig.osd
             onToggled: IslandConfig.osd = checked
+        }
+
+        ToggleRow {
+            last: true
+            text: qsTr("Face unlock")
+            subtext: qsTr("Show biopass face scans in the notch")
+            checked: IslandConfig.faceId
+            onToggled: IslandConfig.faceId = checked
         }
 
         SectionHeader {

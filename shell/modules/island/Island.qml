@@ -81,6 +81,21 @@ Scope {
         target: "island"
     }
 
+    // The face-scan capsule, driven from outside the shell.
+    //
+    // `/usr/local/bin/biopass-gate` is a pam_exec that runs immediately before
+    // `libbiopass_pam.so` in the system auth stack; it calls this on its way
+    // through, so the notch shows the scan for sudo, polkit and every other
+    // re-auth in the session. The result is read back out of the journal by
+    // FaceIdWatcher -- PAM has nothing to report it on.
+    IpcHandler {
+        function start(): void {
+            root.forActiveWindow(w => w.beginFaceId());
+        }
+
+        target: "faceId"
+    }
+
     Variants {
         model: Screens.screens
 
