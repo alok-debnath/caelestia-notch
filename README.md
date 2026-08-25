@@ -13,7 +13,8 @@ Built on Fedora 44 + Hyprland + Quickshell 0.3.1.
 A notch that grows out of the top border as one continuous surface, carrying the
 clock at rest and morphing to show notifications, volume, microphone, brightness,
 the current track, a calendar, system resources, a control centre, notification
-history and a file shelf -- plus a workspace overview in a window of its own.
+history, a file shelf and an app search -- plus a workspace overview in a window
+of its own.
 
 Its **geometry, type scale and motion are Tide Island's**: every state morphs the
 capsule to a fixed size and the content lays out inside it, rather than the
@@ -98,21 +99,55 @@ You still want `caelestia-shell` installed for its Quickshell dependency and
 ## Usage
 
 The notch shows the clock at rest and takes over on its own for notifications
-and volume/microphone/brightness. The expanded views are opened by click or IPC:
-
-| | |
-| --- | --- |
-| **Left click the notch** | calendar |
-| **Right click the notch** | system resources |
+and volume/microphone/brightness. **Hover** it to expand; the capsule itself is
+never clickable, so crossing it on the way somewhere else does nothing. The
+buttons inside the expanded view open the rest, and every view has an IPC call:
 
 ```sh
+qs ipc -c caelestia call island toggleSearch        # the launcher, in the notch
 qs ipc -c caelestia call island toggleCalendar
 qs ipc -c caelestia call island togglePerformance
 qs ipc -c caelestia call island togglePlayer
+qs ipc -c caelestia call island toggleControlCenter
+qs ipc -c caelestia call island toggleNotifications
+qs ipc -c caelestia call island toggleShelf
+qs ipc -c caelestia call island overview
+qs ipc -c caelestia call island nextPage            # the resting pages, without swiping
+qs ipc -c caelestia call island previousPage
 qs ipc -c caelestia call island close
 ```
 
 Bind any of those in `~/.config/hypr/hypr-user.lua` if you want them on keys.
+
+Drag across the notch to move between its three resting pages -- the date, the
+clock, and whatever is playing. Drop a file on it to put it on the shelf.
+
+### The launcher is the notch
+
+**Caelestia's launcher opens in the notch, not in a drawer.** Not a second
+launcher living beside it -- the same one, in a different shape. The drawer at
+the bottom of the screen is gone; the capsule grows into a search field with the
+results hanging below it inside the same surface.
+
+It is `modules/launcher/ContentList` hosted by the island, so everything the
+launcher does, it does here:
+
+| | |
+| --- | --- |
+| apps | fuzzy or exact, ordered by how often you launch them, favourites first |
+| `>` | actions -- whatever is in `launcher.actions` |
+| `>calc ` | the calculator |
+| `>scheme ` `>variant ` | colour schemes and Material variants |
+| `>wallpaper ` | the wallpaper picker, previewing as you move |
+| `:i ` `:c ` `:d ` `:e ` `:w ` `:g ` `:k ` `:t ` | search by id, category, comment, exec, window class, generic name, keywords, terminal-only |
+
+Every keybind is the one you already have: `SUPER + D`, `caelestia shell drawers
+toggle launcher`, `qs ipc call island toggleSearch` -- all of them set the same
+`screenState.launcher` flag, and the notch is what answers it now. Enter
+launches, Escape closes, up/down and the vim keys move, clicking away closes.
+
+To hand it back to the drawer, set `drawerEnabled: true` in
+`modules/launcher/Wrapper.qml`.
 
 A notification or a volume change interrupts whatever is expanded and hands it
 back afterwards — the expanded view is a state the user set, transient layers
@@ -153,6 +188,9 @@ The island module:
 | `PlayerLayer.qml` `MediaBlock.qml` | now playing |
 | `ControlLayer.qml` | the control centre |
 | `FileShelf.qml` `ShelfLayer.qml` | the file shelf |
+| `SearchLayer.qml` | Caelestia's launcher, hosted in the notch |
+| `MarqueeText.qml` | a title too long for the capsule |
+| `IslandLayer.qml` | a layer, and the target size it lays out at |
 | `CalendarLayer.qml` `Calendar.qml` | the calendar, ported from the dashboard |
 | `PerformanceLayer.qml` `Performance.qml` | system resources, ported from the dashboard |
 | `IslandActions.qml` | the island's only buttons |

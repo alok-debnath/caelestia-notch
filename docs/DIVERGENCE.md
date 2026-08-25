@@ -111,6 +111,37 @@ in `~/.config/caelestia/island.json` and the page writes through to it. Every
 other settings page in the window edits `GlobalConfig` instead -- this is the one
 that does not.
 
+## The launcher moved into the notch
+
+`modules/island/SearchLayer.qml` hosts `modules/launcher/ContentList` -- the
+launcher's own list, not a copy of it. Apps, actions, calc, schemes, variants and
+the wallpaper picker all work because they *are* the launcher's, and a setting
+changed anywhere still reaches them. The island supplies the layout and the
+shape; the only real change is direction, since the drawer grew upward out of a
+field at the bottom and the notch hangs downward from one at the top.
+
+The pivot is `screenState.launcher`. Everything that opens the launcher --
+`Shortcuts.qml`, the IPC drawer calls, `SUPER + D` -- sets that flag, and
+everything that closes it (every `AppItem`, every `ActionItem`, the wallpaper
+picker) clears it. The island claims the flag rather than inventing a second
+one, so none of that code needed touching.
+
+| File | Change |
+| --- | --- |
+| `modules/launcher/Wrapper.qml` | `drawerEnabled`, pinned `false`. The panel stays mounted because `Panels`, `Regions` and `ContentWindow` anchor against its geometry; it just never activates, so its height stays zero. Set it back to `true` to hand the launcher back to the drawer |
+| `modules/drawers/ContentWindow.qml` | `keyboardFocus` no longer counts `screenState.launcher`, and the `HyprlandFocusGrab` no longer activates for it |
+
+Both of those last two moved to the island window, which now holds the keyboard
+(`OnDemand`, paired with its own focus grab) while search is open and `None`
+otherwise. Two surfaces claiming focus for one state is how a keystroke goes
+missing, and a grab on the drawers window counts a click on the notch as a click
+outside.
+
+`OnDemand` rather than `Exclusive` is deliberate and was arrived at the hard way:
+`Exclusive` takes the keyboard without the compositor treating the surface as
+focused, so the focus grab cleared itself the instant it activated and the
+search closed on the same frame it opened.
+
 ## Configuration, not code
 
 Caelestia's own OSD is left enabled upstream. It is turned off through

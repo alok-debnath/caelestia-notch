@@ -46,6 +46,10 @@ Scope {
             root.forActiveWindow(w => w.openPanel(IslandWindow.State.Shelf));
         }
 
+        function toggleSearch(): void {
+            root.forActiveWindow(w => w.toggleSearch());
+        }
+
         function toggleControlCenter(): void {
             root.forActiveWindow(w => w.openPanel(IslandWindow.State.Control));
         }

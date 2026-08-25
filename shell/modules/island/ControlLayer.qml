@@ -109,9 +109,9 @@ SlidingLayer {
             }
         }
 
-        // The surfaces that are not everyday enough for the action row, and
-        // the two Caelestia already owns -- the launcher and the settings
-        // window -- which the island opens rather than reimplements.
+        // The surfaces that are not everyday enough for the action row, plus
+        // the settings window, which Caelestia owns and the island opens rather
+        // than reimplements.
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
 
@@ -139,10 +139,9 @@ SlidingLayer {
             IconButton {
                 icon: "apps"
                 type: IconButton.Text
-                onClicked: {
-                    root.island.close();
-                    Quickshell.execDetached(["caelestia", "shell", "drawers", "toggle", "launcher"]);
-                }
+                isToggle: true
+                checked: root.island.searchOpen
+                onClicked: root.island.toggleSearch()
             }
 
             IconButton {

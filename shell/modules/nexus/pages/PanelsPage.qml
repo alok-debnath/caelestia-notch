@@ -47,7 +47,7 @@ PageBase {
             last: true
             icon: "sensors"
             text: qsTr("Island")
-            subtext: IslandConfig.hoverAction === IslandConfig.HoverAction.None ? qsTr("Hover does nothing") : IslandConfig.hoverAction === IslandConfig.HoverAction.Control ? qsTr("Hover opens the control centre") : qsTr("Hover opens now playing")
+            subtext: IslandConfig.hoverAction === IslandConfig.HoverAction.None ? qsTr("Hover does nothing") : IslandConfig.hoverAction === IslandConfig.HoverAction.Control ? qsTr("Hover opens the control centre") : IslandConfig.hoverAction === IslandConfig.HoverAction.Player ? qsTr("Hover opens now playing") : qsTr("Hover opens now playing, or the control centre")
             onClicked: root.nState.openSubPage(11)
         }
     }

@@ -18,7 +18,9 @@ SlidingLayer {
     readonly property var player: Players.active
     readonly property string lineText: lyrics.hasLine ? lyrics.line : (player?.trackTitle ?? "")
 
-    readonly property real preferredWidth: Math.max(IslandTokens.swipeMinWidth, Math.min(maximumWidth, metrics.advanceWidth + IslandTokens.smallArtSize + bars.implicitWidth + IslandTokens.horizontalPadding * 4))
+    // Capped at Tide's media width rather than growing to fit the title: a
+    // page of the notch stays a page of the notch, and a long title scrolls.
+    readonly property real preferredWidth: Math.max(IslandTokens.swipeMinWidth, Math.min(maximumWidth, IslandTokens.mediaMaxWidth, metrics.advanceWidth + IslandTokens.smallArtSize + bars.implicitWidth + IslandTokens.horizontalPadding * 4))
 
     readonly property TextMetrics metrics: TextMetrics {
         font: label.font
@@ -51,7 +53,7 @@ SlidingLayer {
         }
     }
 
-    IslandText {
+    MarqueeText {
         id: label
 
         anchors.left: cover.right
@@ -60,10 +62,8 @@ SlidingLayer {
         anchors.rightMargin: IslandTokens.contentSpacing * 2
         anchors.verticalCenter: parent.verticalCenter
 
-        animate: true
+        height: parent.height
         text: root.lineText
-        elide: Text.ElideRight
-        horizontalAlignment: Text.AlignLeft
     }
 
     CavaBars {

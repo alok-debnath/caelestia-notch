@@ -15,11 +15,16 @@ import qs.utils
 Singleton {
     id: root
 
-    // What hovering the notch opens: nothing, the player, or the control centre.
+    // What hovering the notch opens.
+    //
+    // Auto is the useful one and the default: the player while something is
+    // playing, so hovering whatever is on the media page gives you its
+    // controls, and the control centre the rest of the time.
     enum HoverAction {
         None,
         Player,
-        Control
+        Control,
+        Auto
     }
 
     property alias hoverAction: adapter.hoverAction
@@ -64,7 +69,7 @@ Singleton {
         JsonAdapter {
             id: adapter
 
-            property int hoverAction: IslandConfig.HoverAction.Player
+            property int hoverAction: IslandConfig.HoverAction.Auto
             property int hoverExpandDelay: 350
             property int hoverCollapseDelay: 250
 

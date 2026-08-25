@@ -48,6 +48,17 @@ QtObject {
     readonly property real shelfHeight: 260
     readonly property real shelfCardWidth: 130
 
+    // Search. The notch becomes the field and Caelestia's launcher hangs below
+    // it, so the list's own sizes apply -- these are only the fallback width
+    // before it has measured itself, and the height of the field above it.
+    readonly property real searchWidth: 520
+    readonly property real searchBarHeight: 52
+
+    // The layer-shell surface the island draws into. Fixed and generous rather
+    // than sized to the capsule -- see IslandWindow.qml for why -- so it has to
+    // clear the tallest panel with room to spare.
+    readonly property real windowHeight: 900
+
     // -- Corner radii -----------------------------------------------------
     readonly property real restingRadius: restingHeight / 2
     readonly property real notifRadius: 28
@@ -93,6 +104,18 @@ QtObject {
     readonly property real smallArtSize: 26
     readonly property real progressSize: 30
     readonly property real progressThickness: 3.5
+
+    // The media resting page. Tide keeps it a compact capsule -- cover, title,
+    // a short strip of bars -- rather than letting it grow to the width of
+    // whatever is playing, which is what makes it read as a page of the notch
+    // and not as a panel that opened on its own.
+    readonly property real mediaMaxWidth: 340
+
+    // How many bars the strip draws, regardless of how many cava reports.
+    readonly property int mediaBarCount: 10
+
+    readonly property int marqueePause: 1600
+    readonly property real marqueeMsPerPixel: 22
 
     // The cava strip: Tide's bar metrics.
     readonly property real barWidth: 4

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Caelestia.Config
 import qs.components
@@ -34,10 +35,21 @@ StyledWindow {
         Performance,  // panel: system resources
         Control,      // panel: control centre
         NotifCenter,  // panel: notification history
-        Shelf         // panel: the file shelf
+        Shelf,        // panel: the file shelf
+        Search        // panel: the notch as a search field
     }
 
     readonly property Brightness.Monitor monitor: Brightness.getMonitorForScreen(root.screen)
+
+    // The shell's per-screen state and panels. The island needs both because it
+    // hosts Caelestia's launcher: `screenState.launcher` is what every shortcut,
+    // IPC call and launcher item already toggles, so the notch claims that flag
+    // rather than inventing a second one.
+    readonly property ScreenState screenState: ShellState.forScreen(root.screen)
+    readonly property var panels: ShellState.componentsFor(root.screen)?.panels ?? null
+
+    readonly property bool searchOpen: (screenState?.launcher ?? false) && root.contentItem.Config.launcher.enabled
+
 
     // Mirrored by ContentWindow into the blob group.
     readonly property Item capsule: capsule
@@ -67,6 +79,10 @@ StyledWindow {
         // has to be open and wide before the drop lands.
         if (dropping)
             return IslandWindow.State.Shelf;
+        // Search outranks the other panels: asking for the launcher while the
+        // calendar is open should give you the launcher.
+        if (searchOpen)
+            return IslandWindow.State.Search;
         if (hasPanel)
             return panel;
         if (notifications.current && IslandConfig.notifications)
@@ -75,8 +91,15 @@ StyledWindow {
             return IslandWindow.State.Long;
         if (osd.showing && IslandConfig.osd)
             return IslandWindow.State.Split;
-        if (hoverExpanded)
-            return IslandConfig.hoverAction === IslandConfig.HoverAction.Control ? IslandWindow.State.Control : IslandWindow.State.Player;
+        if (hoverExpanded) {
+            if (IslandConfig.hoverAction === IslandConfig.HoverAction.Control)
+                return IslandWindow.State.Control;
+            if (IslandConfig.hoverAction === IslandConfig.HoverAction.Player)
+                return IslandWindow.State.Player;
+            // Auto: the player when there is something to control, and the
+            // control centre when there is not.
+            return Players.active ? IslandWindow.State.Player : IslandWindow.State.Control;
+        }
         return resting;
     }
 
@@ -126,6 +149,8 @@ StyledWindow {
             return IslandTokens.panelWidth;
         case IslandWindow.State.Shelf:
             return Math.min(root.width - IslandTokens.swipeSideMargin, IslandTokens.shelfWidth);
+        case IslandWindow.State.Search:
+            return Math.min(root.width - IslandTokens.swipeSideMargin, searchLoader.item?.implicitWidth ?? IslandTokens.searchWidth);
         case IslandWindow.State.Custom:
             return Math.max(IslandTokens.swipeMinWidth, Math.min(root.width - IslandTokens.swipeSideMargin, customLoader.item?.preferredWidth ?? 0));
         case IslandWindow.State.Lyrics:
@@ -151,6 +176,9 @@ StyledWindow {
             return notifCenterLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
         case IslandWindow.State.Shelf:
             return IslandTokens.shelfHeight;
+        case IslandWindow.State.Search:
+            return searchLoader.item?.implicitHeight ?? IslandTokens.searchBarHeight;
+
         default:
             return IslandTokens.restingHeight;
         }
@@ -168,6 +196,9 @@ StyledWindow {
         case IslandWindow.State.NotifCenter:
         case IslandWindow.State.Shelf:
             return IslandTokens.panelRadius;
+        case IslandWindow.State.Search:
+            // A pill while it is only a field, a panel once results hang off it.
+            return Math.min(IslandTokens.panelRadius, targetHeight / 2);
         default:
             return IslandTokens.restingRadius;
         }
@@ -189,9 +220,22 @@ StyledWindow {
         hoverExpanded = false;
     }
 
+    // Search is not one of `panel`'s values: it lives in `screenState.launcher`
+    // so that the shortcut, the IPC call and every launcher item that closes
+    // itself keep working untouched.
+    function toggleSearch(): void {
+        if (!screenState)
+            return;
+        screenState.launcher = !screenState.launcher;
+        panel = IslandWindow.State.Normal;
+        hoverExpanded = false;
+    }
+
     function close(): void {
         panel = IslandWindow.State.Normal;
         hoverExpanded = false;
+        if (screenState)
+            screenState.launcher = false;
     }
 
     // Which resting page the swipe lands on. Tide moves one page at a time and
@@ -231,13 +275,27 @@ StyledWindow {
 
     name: "island"
 
+    // The search layer needs the keyboard; nothing else in the island does, and
+    // a notch holding a grab it has no use for would swallow every shortcut.
+    // OnDemand, not Exclusive, and paired with the focus grab below -- the
+    // same arrangement the launcher drawer used. Exclusive takes the keyboard
+    // without the compositor considering the surface focused, which makes the
+    // grab clear itself the instant it activates.
+    WlrLayershell.keyboardFocus: searchOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+
     anchors.top: true
     anchors.left: true
     anchors.right: true
 
     // Tokens is screen-scoped via contentItem, so the window object itself must
     // not read it. A plain constant is enough for the slack below the capsule.
-    implicitHeight: capsule.y + capsule.height + IslandTokens.verticalPadding * 2
+    //
+    // Fixed, deliberately: this is a layer-shell surface, and binding its height
+    // to the capsule resized the Wayland surface on every frame of the morph --
+    // a buffer reallocation and a full compositor recomposite sixty times a
+    // second, which is what made the island judder. The window is transparent
+    // and masked down to the capsule, so being permanently tall costs nothing.
+    implicitHeight: Math.min(IslandTokens.windowHeight, screen.height)
 
     // Reserve only the resting height, so windows do not move every time the
     // island expands.
@@ -245,8 +303,24 @@ StyledWindow {
 
     // Everything outside the capsule is click-through: the island spans the full
     // width of the screen but is only actually there in the middle.
+    //
+    // The region follows the *target* geometry rather than the animating
+    // capsule, for the same reason the window height is fixed: a region bound to
+    // an animating item commits a new input region every frame. Snapping it also
+    // means a panel is clickable the moment it opens rather than 400ms later.
     mask: Region {
-        item: capsule
+        item: maskItem
+    }
+
+    Item {
+        id: maskItem
+
+        anchors.horizontalCenter: parent.horizontalCenter
+
+        y: 0
+        width: root.swiping ? root.swipePreviewWidth : root.targetWidth
+        height: root.targetHeight
+        visible: false
     }
 
     Item {
@@ -340,46 +414,68 @@ StyledWindow {
                 root.hoverExpanded = false
         }
 
-        // Every layer fills the capsule and slides or fades itself. Tide does it
-        // this way so that during a swipe the page arriving and the page leaving
-        // are both mounted and both moving.
-        ClockLayer {
-            offset: root.pageOffset(IslandWindow.State.Normal)
-            showCondition: root.isResting
-            animated: !root.swiping
-        }
+        // The resting pages live in a strip of their own rather than filling the
+        // capsule, so that expanding to a panel does not stretch the clock out
+        // across it on the way. The strip is only ever resting-sized (or as wide
+        // as the page being dragged in).
+        Item {
+            id: restingArea
 
-        Loader {
-            id: customLoader
+            anchors.horizontalCenter: parent.horizontalCenter
 
-            anchors.fill: parent
-            active: root.hasDatePage && root.canSwipe && (root.islandState === IslandWindow.State.Custom || root.swipeProgress < 0)
-            visible: active
+            y: 0
+            width: root.swiping ? root.swipePreviewWidth : (root.isResting ? root.targetWidth : IslandTokens.restingWidth)
+            height: IslandTokens.restingHeight
 
-            sourceComponent: DatePreviewLayer {
-                offset: root.pageOffset(IslandWindow.State.Custom)
+            Behavior on width {
+                enabled: !root.swiping
+
+                NumberAnimation {
+                    duration: IslandTokens.morphDuration
+                    easing.type: Easing.OutQuint
+                }
+            }
+
+            // Every page fills the strip and slides or fades itself. Tide does
+            // it this way so that during a swipe the page arriving and the page
+            // leaving are both mounted and both moving.
+            ClockLayer {
+                offset: root.pageOffset(IslandWindow.State.Normal)
+                showCondition: root.isResting
                 animated: !root.swiping
+            }
+
+            Loader {
+                id: customLoader
+
+                anchors.fill: parent
+                active: root.hasDatePage && root.canSwipe && (root.islandState === IslandWindow.State.Custom || root.swipeProgress < 0)
+                visible: active
+
+                sourceComponent: DatePreviewLayer {
+                    offset: root.pageOffset(IslandWindow.State.Custom)
+                    animated: !root.swiping
+                }
+            }
+
+            Loader {
+                id: lyricsLoader
+
+                anchors.fill: parent
+                active: root.hasMediaPage && root.canSwipe && (root.islandState === IslandWindow.State.Lyrics || root.swipeProgress > 0)
+                visible: active
+
+                sourceComponent: LyricsLayer {
+                    offset: root.pageOffset(IslandWindow.State.Lyrics)
+                    animated: !root.swiping
+                    maximumWidth: root.width - IslandTokens.swipeSideMargin
+                }
             }
         }
 
-        Loader {
-            id: lyricsLoader
-
-            anchors.fill: parent
-            active: root.hasMediaPage && root.canSwipe && (root.islandState === IslandWindow.State.Lyrics || root.swipeProgress > 0)
-            visible: active
-
-            sourceComponent: LyricsLayer {
-                offset: root.pageOffset(IslandWindow.State.Lyrics)
-                animated: !root.swiping
-                maximumWidth: root.width - IslandTokens.swipeSideMargin
-            }
-        }
-
-        Loader {
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.Split
-            visible: active
+        IslandLayer {
+            island: root
+            forState: IslandWindow.State.Split
 
             sourceComponent: OsdLayer {
                 kind: osd.kind
@@ -389,10 +485,9 @@ StyledWindow {
             }
         }
 
-        Loader {
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.Long
-            visible: active
+        IslandLayer {
+            island: root
+            forState: IslandWindow.State.Long
 
             sourceComponent: EventLayer {
                 kind: events.kind
@@ -402,12 +497,11 @@ StyledWindow {
             }
         }
 
-        Loader {
+        IslandLayer {
             id: notifLoader
 
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.Notification
-            visible: active
+            island: root
+            forState: IslandWindow.State.Notification
 
             sourceComponent: NotificationLayer {
                 notif: notifications.current
@@ -415,34 +509,31 @@ StyledWindow {
             }
         }
 
-        Loader {
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.Player
-            visible: active
+        IslandLayer {
+            island: root
+            forState: IslandWindow.State.Player
 
             sourceComponent: PlayerLayer {
                 island: root
             }
         }
 
-        Loader {
+        IslandLayer {
             id: calendarLoader
 
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.Calendar
-            visible: active
+            island: root
+            forState: IslandWindow.State.Calendar
 
             sourceComponent: CalendarLayer {
                 island: root
             }
         }
 
-        Loader {
+        IslandLayer {
             id: performanceLoader
 
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.Performance
-            visible: active
+            island: root
+            forState: IslandWindow.State.Performance
 
             sourceComponent: PerformanceLayer {
                 island: root
@@ -469,34 +560,42 @@ StyledWindow {
             }
         }
 
-        Loader {
+        IslandLayer {
             id: shelfLoader
 
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.Shelf
-            visible: active
+            island: root
+            forState: IslandWindow.State.Shelf
 
             sourceComponent: ShelfLayer {
                 island: root
             }
         }
 
-        Loader {
+        IslandLayer {
             id: notifCenterLoader
 
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.NotifCenter
-            visible: active
+            island: root
+            forState: IslandWindow.State.NotifCenter
 
             sourceComponent: NotificationCenterLayer {
                 island: root
             }
         }
 
-        Loader {
-            anchors.fill: parent
-            active: root.islandState === IslandWindow.State.Control
-            visible: active
+        IslandLayer {
+            id: searchLoader
+
+            island: root
+            forState: IslandWindow.State.Search
+
+            sourceComponent: SearchLayer {
+                island: root
+            }
+        }
+
+        IslandLayer {
+            island: root
+            forState: IslandWindow.State.Control
 
             sourceComponent: ControlLayer {
                 island: root
@@ -505,17 +604,28 @@ StyledWindow {
         }
     }
 
+    // Clicking anywhere else closes the search, the way the launcher drawer's
+    // own grab used to. It is here rather than on the drawers window because the
+    // notch is a different surface: that grab would count a click on the island
+    // itself as a click outside.
+    HyprlandFocusGrab {
+        active: root.searchOpen
+        windows: [root]
+        onCleared: if (root.screenState)
+            root.screenState.launcher = false
+    }
+
     OsdWatcher {
         id: osd
 
         monitor: root.monitor
-        blocked: root.hasPanel
+        blocked: root.hasPanel || root.searchOpen
     }
 
     EventWatcher {
         id: events
 
-        blocked: root.hasPanel
+        blocked: root.hasPanel || root.searchOpen
     }
 
     NotificationQueue {

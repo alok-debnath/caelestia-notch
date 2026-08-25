@@ -13,7 +13,16 @@ Item {
     required property ScreenState screenState
     required property var panels
 
-    readonly property bool shouldBeActive: screenState.launcher && Config.launcher.enabled
+    // The notch renders the launcher now: `screenState.launcher` opens the
+    // island's search layer instead of this drawer. The panel stays mounted
+    // because Panels, Regions and ContentWindow all anchor against its
+    // geometry -- it simply never becomes active, so its height stays zero.
+    //
+    // Set this back to true to hand the launcher back to the drawer. You would
+    // then also want to stop the notch claiming it, in modules/island.
+    property bool drawerEnabled: false
+
+    readonly property bool shouldBeActive: drawerEnabled && screenState.launcher && Config.launcher.enabled
 
     readonly property real maxHeight: {
         let max = screen.height - Config.border.thickness * 2 + Tokens.padding.extraLarge;

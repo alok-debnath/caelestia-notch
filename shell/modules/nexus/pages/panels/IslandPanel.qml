@@ -26,6 +26,10 @@ PageBase {
         MenuItem {
             text: qsTr("Control centre")
             icon: "tune"
+        },
+        MenuItem {
+            text: qsTr("Whichever fits")
+            icon: "auto_awesome"
         }
     ]
 
@@ -46,7 +50,7 @@ PageBase {
         SelectRow {
             first: true
             label: qsTr("Hovering opens")
-            subtext: qsTr("The capsule itself is never clicked")
+            subtext: qsTr("\"Whichever fits\" opens now playing while something is playing")
             menuItems: root.hoverItems
             active: root.hoverItems[IslandConfig.hoverAction]
             onSelected: item => IslandConfig.hoverAction = root.hoverItems.indexOf(item)

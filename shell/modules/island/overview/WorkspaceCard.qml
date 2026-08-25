@@ -55,8 +55,8 @@ StyledClippingRect {
             scaleFactor: root.scaleFactor
             // Window geometry is in compositor coordinates, which include the
             // monitor's own offset on a multi-head setup.
-            originX: root.monitor?.lastIpcObject.x ?? 0
-            originY: root.monitor?.lastIpcObject.y ?? 0
+            originX: root?.monitor?.lastIpcObject.x ?? 0
+            originY: root?.monitor?.lastIpcObject.y ?? 0
 
             onActivated: root.activated()
         }
