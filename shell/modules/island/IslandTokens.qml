@@ -37,7 +37,7 @@ QtObject {
 
     // Panels.
     readonly property real playerWidth: 410
-    readonly property real playerHeight: 165
+    readonly property real playerHeight: 190
     readonly property real controlWidth: 420
     readonly property real controlHeight: 400
     readonly property real panelWidth: 410

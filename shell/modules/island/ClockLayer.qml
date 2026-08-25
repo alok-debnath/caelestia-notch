@@ -43,15 +43,30 @@ SlidingLayer {
         }
     }
 
-    IslandText {
+    // Time.timeStr joins its parts with colons so callers can split them;
+    // the notch wants a readable string, and amPmStr is empty on 24h.
+    readonly property string timeText: Time.amPmStr ? `${Time.hourStr}:${Time.minuteStr} ${Time.amPmStr}` : `${Time.hourStr}:${Time.minuteStr}`
+
+    // One character per glyph, so the minute-tick only fades the digit that
+    // actually changed. A single Text bound to the whole string re-animates
+    // top to bottom every tick, which is the "refreshes the whole clock"
+    // judder Tide never had.
+    Row {
         id: label
 
         anchors.centerIn: parent
+        spacing: 0
 
-        hero: true
-        animate: true
-        // Time.timeStr joins its parts with colons so callers can split them;
-        // the notch wants a readable string, and amPmStr is empty on 24h.
-        text: Time.amPmStr ? `${Time.hourStr}:${Time.minuteStr} ${Time.amPmStr}` : `${Time.hourStr}:${Time.minuteStr}`
+        Repeater {
+            model: root.timeText.length
+
+            IslandText {
+                required property int index
+
+                hero: true
+                animate: true
+                text: root.timeText[index] ?? ""
+            }
+        }
     }
 }

@@ -38,8 +38,14 @@ SlidingLayer {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Tokens.padding.extraLarge
-        spacing: Tokens.spacing.large
+        // Fixed, not Tokens.padding/spacing: those are scaled for the bar's
+        // full-size popups and overflowed this fixed 165px capsule, pushing
+        // the transport row into the bottom corner radius. IslandTokens'
+        // horizontalPadding/contentSpacing are sized for swipe pages, not a
+        // three-row panel, so this stays a literal 20px per the layout this
+        // panel was built to (see file header).
+        anchors.margins: 20
+        spacing: 10
 
         RowLayout {
             Layout.fillWidth: true
