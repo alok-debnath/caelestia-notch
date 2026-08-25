@@ -72,6 +72,25 @@ StyledWindow {
     // A file is being dragged over the notch.
     property bool dropping
 
+    // -- The top gesture strip ------------------------------------------
+    //
+    // Tide's island takes input across the whole reserved strip along the top
+    // of the screen, not just the capsule, and that strip is the entire reason
+    // its drag-and-drop works. A Wayland drag is only ever offered to the
+    // surface under the pointer whose *input region* contains that point: at
+    // rest the capsule is 140x38 in the middle of an 1800px screen, so a file
+    // dragged at the notch was handed to whatever was behind it unless it
+    // landed dead centre. The strip makes the whole top edge a drop target.
+    //
+    // Bounded by the monitor's reserved edges so the bar keeps its own clicks,
+    // and dropped entirely once a panel is open -- the capsule's own region is
+    // bigger than the strip by then.
+    readonly property var monitorReserved: Hypr.monitorFor(screen)?.lastIpcObject?.reserved ?? [0, 0, 0, 0]
+    readonly property bool gestureStripActive: !hasPanel && !searchOpen
+    readonly property real gestureStripX: monitorReserved[0]
+    readonly property real gestureStripWidth: gestureStripActive ? Math.max(0, width - monitorReserved[0] - monitorReserved[2]) : 0
+    readonly property real gestureStripHeight: gestureStripActive ? IslandTokens.restingHeight : 0
+
     // -1 (fully on the left page) .. 1 (fully on the right page) while dragging.
     property real swipeProgress: 0
     // True while the strip is being moved by hand -- a drag, or a wheel that
@@ -437,7 +456,9 @@ StyledWindow {
     // same arrangement the launcher drawer used. Exclusive takes the keyboard
     // without the compositor considering the surface focused, which makes the
     // grab clear itself the instant it activates.
-    WlrLayershell.keyboardFocus: searchOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    // The shelf takes it too, for Tide's card keys -- arrows to move along the
+    // tray, Delete to take one off, Enter to open it.
+    WlrLayershell.keyboardFocus: searchOpen || panel === IslandWindow.State.Shelf ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     anchors.top: true
     anchors.left: true
@@ -490,6 +511,14 @@ StyledWindow {
             y: timerBubble.y
             width: timerBubble.visible ? timerBubble.width : 0
             height: timerBubble.visible ? timerBubble.height : 0
+        }
+
+        // The drop target: see `gestureStripActive` above.
+        Region {
+            x: root.gestureStripX
+            y: 0
+            width: root.gestureStripWidth
+            height: root.gestureStripHeight
         }
     }
 
@@ -880,24 +909,24 @@ StyledWindow {
             }
         }
 
-        // Dropping a file on the notch puts it on the shelf. Written to match
-        // Tide's own DropArea exactly -- no `keys:` filter, payload checked
-        // by hand, accept() called in onEntered as well as onDropped -- after
-        // a `keys`-filtered version never fired at all. That still doesn't
-        // land on this box: entered/dropped never fire here either, because
-        // of a Hyprland bug (fixed on main in hyprwm/Hyprland#15780,
-        // 2026-08-08, not yet in a packaged release as of this build,
-        // 0.56.2-3 from commit efb5099 dated 2026-08-05) where keyboard
-        // exclusivity held by any layer-shell surface blocks the compositor
-        // from ever offering a drag to other surfaces, layer-shell or not.
-        // Left in for when a build with that fix is packaged; until then the
-        // working path is FileShelf.pasteFromClipboard (see ShelfLayer's
-        // paste button). Drag-out (ShelfLayer's card Drag.dragType Automatic)
-        // is this surface acting as the drag *source*, not a target, so it
-        // may not hit the same bug -- untested against a real drag gesture,
-        // worth confirming once this is live.
+        // Dropping a file on the notch puts it on the shelf.
+        //
+        // Written to match Tide's own DropArea exactly: no `keys:` filter, the
+        // payload checked by hand, and accept() called in onEntered as well as
+        // onDropped. What was missing was not here at all but in the window's
+        // input mask -- see `gestureStripActive` above. A Wayland drag is only
+        // ever offered to the surface whose input region contains the pointer,
+        // and at rest that region was the 140x38 capsule, so a file dragged at
+        // the notch went to whatever was behind it. Tide's island takes input
+        // across the whole top strip of the screen, which is what makes its
+        // shelf catch anything at all; ours does now too.
         DropArea {
             anchors.fill: parent
+
+            // Over every layer, as Tide has it: the panels are siblings drawn
+            // after this, and a drag offered to one of them is a drag the
+            // shelf never sees.
+            z: 10000
 
             function carriesFiles(drag): bool {
                 if (drag.hasUrls)
@@ -1009,15 +1038,34 @@ StyledWindow {
     // bubbles, the surface takes no input at all.
     HoverHandler {
         id: hover
+    }
 
-        onHoveredChanged: {
-            if (hovered) {
-                collapseTimer.stop();
-                expandTimer.restart();
-            } else {
-                expandTimer.stop();
-                collapseTimer.restart();
-            }
+    // ...but the mask is no longer only the island: the top gesture strip put
+    // the whole top edge of the screen into it (so a drag has somewhere to
+    // land), and without this the notch would unroll whenever the pointer
+    // crossed any part of that edge. So "on the island" is decided by hand:
+    // over the capsule, or over a bubble beside it, with a little slack.
+    readonly property real hoverSlack: 12
+    readonly property bool pointerOnIsland: {
+        if (!hover.hovered)
+            return false;
+
+        const p = hover.point.position;
+        const shelfOut = shelfBubble.visible && shelfBubble.opacity > 0.01;
+        const timerOut = timerBubble.visible && timerBubble.opacity > 0.01;
+        const left = (shelfOut ? Math.min(capsule.x, shelfBubble.x) : capsule.x) - hoverSlack;
+        const right = (timerOut ? Math.max(capsule.x + capsule.width, timerBubble.x + timerBubble.width) : capsule.x + capsule.width) + hoverSlack;
+
+        return p.x >= left && p.x <= right && p.y >= 0 && p.y <= capsule.y + capsule.height + hoverSlack;
+    }
+
+    onPointerOnIslandChanged: {
+        if (pointerOnIsland) {
+            collapseTimer.stop();
+            expandTimer.restart();
+        } else {
+            expandTimer.stop();
+            collapseTimer.restart();
         }
     }
 

@@ -56,7 +56,13 @@ QtObject {
     readonly property real widePanelWidth: 470
     readonly property real shelfWidth: 1100
     readonly property real shelfHeight: 260
-    readonly property real shelfCardWidth: 130
+    // Tide's shelf card: a big system icon with the name under it, five of
+    // them across before the tray starts scrolling.
+    readonly property real shelfCardWidth: 176
+    readonly property real shelfCardHeight: 176
+    readonly property real shelfCellWidth: 196
+    readonly property int shelfCapacity: 5
+    readonly property real shelfPadding: 18
     readonly property real clipboardHeight: 420
 
     // Search. The notch becomes the field and Caelestia's launcher hangs below
