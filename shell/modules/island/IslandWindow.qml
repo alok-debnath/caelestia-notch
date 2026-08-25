@@ -602,45 +602,6 @@ StyledWindow {
             onTapped: root.runAction(IslandConfig.middleClickAction)
         }
 
-        // Scroll over an open panel to move between the tabs.
-        //
-        // Below the panel's own content in the stack, so anything that scrolls
-        // -- the wallpaper strip, the notification list -- gets the wheel
-        // first and only what it does not use reaches here. One notch is one
-        // tab, with a short cooldown so a flick does not fly through five of
-        // them.
-        WheelHandler {
-            id: panelWheel
-
-            property bool cooling: false
-
-            enabled: root.panelIndex >= 0
-            target: null
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            orientation: Qt.Horizontal | Qt.Vertical
-
-            onWheel: event => {
-                if (cooling)
-                    return;
-
-                const px = event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0 ? event.pixelDelta : Qt.point(event.angleDelta.x / 4, event.angleDelta.y / 4);
-                const delta = Math.abs(px.x) > Math.abs(px.y) ? px.x : px.y;
-                if (Math.abs(delta) < 2)
-                    return;
-
-                root.stepPanel(delta < 0 ? 1 : -1);
-                cooling = true;
-                panelWheelCooldown.restart();
-            }
-        }
-
-        Timer {
-            id: panelWheelCooldown
-
-            interval: 260
-            onTriggered: panelWheel.cooling = false
-        }
-
         // Scroll over the notch to move between the resting pages.
         //
         // Tide's own gesture, and the better one: the wheel scrubs the strip
@@ -1043,20 +1004,21 @@ StyledWindow {
     // ...but the mask is no longer only the island: the top gesture strip put
     // the whole top edge of the screen into it (so a drag has somewhere to
     // land), and without this the notch would unroll whenever the pointer
-    // crossed any part of that edge. So "on the island" is decided by hand:
-    // over the capsule, or over a bubble beside it, with a little slack.
+    // crossed any part of that edge. So "on the island" is decided by hand,
+    // and it means the capsule, with a little slack -- not the bubbles.
+    //
+    // The bubbles are pointedly excluded. They only exist while the island is
+    // resting, so counting a hover on one as a hover on the island expanded
+    // the notch, which stopped it resting, which took the bubble out from
+    // under the pointer that was reaching for it. Aiming at the shelf bubble
+    // meant watching it vanish.
     readonly property real hoverSlack: 12
     readonly property bool pointerOnIsland: {
         if (!hover.hovered)
             return false;
 
         const p = hover.point.position;
-        const shelfOut = shelfBubble.visible && shelfBubble.opacity > 0.01;
-        const timerOut = timerBubble.visible && timerBubble.opacity > 0.01;
-        const left = (shelfOut ? Math.min(capsule.x, shelfBubble.x) : capsule.x) - hoverSlack;
-        const right = (timerOut ? Math.max(capsule.x + capsule.width, timerBubble.x + timerBubble.width) : capsule.x + capsule.width) + hoverSlack;
-
-        return p.x >= left && p.x <= right && p.y >= 0 && p.y <= capsule.y + capsule.height + hoverSlack;
+        return p.x >= capsule.x - hoverSlack && p.x <= capsule.x + capsule.width + hoverSlack && p.y >= 0 && p.y <= capsule.y + capsule.height + hoverSlack;
     }
 
     onPointerOnIslandChanged: {

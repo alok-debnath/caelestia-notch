@@ -47,6 +47,14 @@ SlidingLayer {
     // only a target then, so it shows the drop hint instead of the tray.
     readonly property bool dropPreviewOnly: island.dropping
 
+    // Both, deliberately: the layer is created lazily, so by the time it
+    // exists `showing` is already true and the change signal never fires --
+    // which is why a shelf full of files that no longer exist stayed that way.
+    Component.onCompleted: {
+        FileShelf.refresh();
+        normalizeSelection();
+    }
+
     onShowingChanged: {
         if (!showing)
             return;
@@ -344,14 +352,37 @@ SlidingLayer {
         boundsBehavior: Flickable.StopAtBounds
         flickDeceleration: 1800
 
+        // A mouse wheel is vertical and the tray is horizontal, so either axis
+        // moves it: without this, only a trackpad's sideways flick scrolled
+        // the shelf at all. Nothing else in the panel takes the wheel now that
+        // tab paging lives on the dots row.
+        WheelHandler {
+            enabled: tray.contentWidth > tray.width && !root.reorderActive
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            orientation: Qt.Horizontal | Qt.Vertical
+
+            onWheel: event => {
+                const px = event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0 ? event.pixelDelta : Qt.point(event.angleDelta.x / 2, event.angleDelta.y / 2);
+                const delta = Math.abs(px.x) > Math.abs(px.y) ? px.x : px.y;
+                if (delta === 0)
+                    return;
+
+                tray.contentX = Math.max(0, Math.min(tray.contentWidth - tray.width, tray.contentX - delta));
+            }
+        }
+
         Repeater {
-            model: FileShelf.entries
+            model: FileShelf.model
 
             Item {
                 id: card
 
                 required property int index
-                required property var modelData
+                required property string path
+                required property string displayName
+                required property string iconSource
+                required property bool directory
 
                 readonly property bool selected: index === root.selectedIndex
                 readonly property bool reorderSource: root.reorderActive && index === root.reorderSourceIndex
@@ -379,7 +410,7 @@ SlidingLayer {
                     Drag.proposedAction: Qt.CopyAction
                     Drag.hotSpot: Qt.point(width / 2, height / 2)
                     Drag.imageSource: icon.source
-                    Drag.mimeData: FileShelf.mimeData(card.modelData.path)
+                    Drag.mimeData: FileShelf.mimeData(card.path)
 
                     transform: [
                         Translate {
@@ -416,25 +447,45 @@ SlidingLayer {
                         height: 122
 
                         // The system icon for the file's own mime type, not a
-                        // glyph standing in for a category -- an image shows
-                        // itself instead, which is the one place this goes
-                        // further than Tide.
+                        // glyph standing in for a category.
                         IconImage {
                             id: icon
 
                             anchors.centerIn: parent
 
+                            visible: !preview.visible
                             implicitSize: 108
-                            source: FileShelf.isImage(card.modelData.path) ? `file://${card.modelData.path}` : card.modelData.iconSource
+                            source: card.iconSource
                             asynchronous: true
                             mipmap: true
+                        }
+
+                        // An image shows itself instead, which is the one
+                        // place this goes further than Tide. A plain Image
+                        // rather than the IconImage above, for `sourceSize`:
+                        // without a cap a photo is decoded at its full
+                        // resolution to fill a 108px box.
+                        Image {
+                            id: preview
+
+                            anchors.centerIn: parent
+
+                            width: 108
+                            height: 108
+                            source: FileShelf.isImage(card.path) ? `file://${card.path}` : ""
+                            sourceSize.width: 216
+                            sourceSize.height: 216
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            mipmap: true
+                            visible: status === Image.Ready
                         }
 
                         MaterialIcon {
                             anchors.centerIn: parent
 
-                            visible: icon.source.toString() === "" || icon.status === Image.Error
-                            text: card.modelData.directory ? "folder" : "draft"
+                            visible: !preview.visible && (icon.source.toString() === "" || icon.status === Image.Error)
+                            text: card.directory ? "folder" : "draft"
                             color: Colours.palette.m3onSurfaceVariant
                             fontStyle: Tokens.font.icon.builders.extraLarge.build()
                         }
@@ -448,7 +499,7 @@ SlidingLayer {
                         anchors.leftMargin: 9
                         anchors.rightMargin: 9
 
-                        text: card.modelData.displayName
+                        text: card.displayName
                         color: card.selected ? Colours.palette.m3onSurface : Colours.palette.m3onSurfaceVariant
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideMiddle
@@ -468,8 +519,8 @@ SlidingLayer {
 
                     onClicked: root.selectedIndex = card.index
                     onDoubleClicked: {
-                        if (root.suppressedOpenPath !== card.modelData.path)
-                            FileShelf.open(card.modelData.path);
+                        if (root.suppressedOpenPath !== card.path)
+                            FileShelf.open(card.path);
                     }
                 }
 
@@ -556,7 +607,7 @@ SlidingLayer {
                     onActiveChanged: {
                         if (active) {
                             exporting = false;
-                            root.suppressedOpenPath = card.modelData.path;
+                            root.suppressedOpenPath = card.path;
                             root.beginReorder(card.index);
                             classify();
                         } else if (card.reorderSource) {

@@ -17,62 +17,132 @@ Singleton {
     readonly property list<string> paths: adapter.paths
     readonly property int count: adapter.paths.length
 
-    // Tide's own model rows, built here instead of in C++. Everything the
-    // shelf draws comes from one of these, so a card never has to go and ask
-    // the singleton four separate questions about the same file.
-    readonly property list<var> entries: adapter.paths.map(path => {
+    // The shelf's rows, as a real ListModel rather than a JS array.
+    //
+    // The array was simpler and it made every change destroy and rebuild every
+    // card: a probe coming back, a reorder committing, one file being taken
+    // off. A ListModel is reconciled instead -- rows that are still wanted are
+    // moved, not recreated -- so a card keeps its delegate, and a reorder
+    // slides rather than blinking.
+    readonly property ListModel model: ListModel {}
+
+    function get(index: int): var {
+        return index >= 0 && index < model.count ? model.get(index) : null;
+    }
+
+    function row(path: string): var {
         const probed = root.probed[path] ?? {};
         const mime = probed.mime ?? "";
-        const directory = mime === "inode/directory";
         const fileName = root.name(path);
         return {
             path,
             uri: `file://${path}`,
             fileName,
             displayName: root.shorten(fileName),
-            directory,
+            directory: mime === "inode/directory",
             mime,
+            exists: probed.exists !== false,
             // An absolute path to a file in the icon theme, found by the probe
-            // below rather than by QIcon: see `probeTypes`.
+            // below rather than by QIcon: see `probeScript`.
             iconSource: probed.icon ? `file://${probed.icon}` : ""
         };
-    })
+    }
 
-    function get(index: int): var {
-        return index >= 0 && index < entries.length ? entries[index] : null;
+    // Bring the model in line with `paths`, touching as little as possible:
+    // drop what is gone, move what has shifted, insert only what is new.
+    function syncModel(): void {
+        const wanted = adapter.paths;
+
+        for (let i = model.count - 1; i >= 0; i--)
+            if (!wanted.includes(model.get(i).path))
+                model.remove(i);
+
+        for (let i = 0; i < wanted.length; i++) {
+            const path = wanted[i];
+            let at = -1;
+            for (let j = i; j < model.count; j++)
+                if (model.get(j).path === path) {
+                    at = j;
+                    break;
+                }
+
+            if (at === -1)
+                model.insert(i, row(path));
+            else if (at !== i)
+                model.move(at, i, 1);
+        }
+    }
+
+    // Probe results land on the rows that changed rather than rebuilding them.
+    function applyProbe(): void {
+        for (let i = 0; i < model.count; i++) {
+            const current = model.get(i);
+            const next = row(current.path);
+            if (current.iconSource !== next.iconSource)
+                model.setProperty(i, "iconSource", next.iconSource);
+            if (current.mime !== next.mime)
+                model.setProperty(i, "mime", next.mime);
+            if (current.directory !== next.directory)
+                model.setProperty(i, "directory", next.directory);
+            if (current.exists !== next.exists)
+                model.setProperty(i, "exists", next.exists);
+        }
     }
 
     // Tide's display name: 22 characters, and past that the middle is dropped
     // rather than the tail, so the extension survives.
     function shorten(fileName: string): string {
-        return fileName.length <= 22 ? fileName : `${fileName.slice(0, 13)}\u2026${fileName.slice(-8)}`;
+        return fileName.length <= 22 ? fileName : `${fileName.slice(0, 13)}…${fileName.slice(-8)}`;
     }
 
-    // What the probe found, keyed by path: `{ mime, icon }`. Not persisted --
-    // it is cheap to re-derive, and a file's type can change under us.
+    // What the probe found, keyed by path: `{ mime, icon, exists }`. Not
+    // persisted -- it is cheap to re-derive, and a file's type can change
+    // under us -- but kept across list changes, so reordering the shelf does
+    // not send every file back through the probe.
     property var probed: ({})
 
     readonly property Process probe: Process {
+        // Which paths this run was asked about, in order. Kept here rather
+        // than read off `paths` when the reply lands, because the list can
+        // have moved on by then.
+        property var asked: []
+
         running: false
 
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.split("\n").filter(l => l.length > 0);
-                const next = {};
-                for (let i = 0; i < root.paths.length && i < lines.length; i++) {
+                const asked = root.probe.asked;
+                const next = Object.assign({}, root.probed);
+
+                for (let i = 0; i < asked.length && i < lines.length; i++) {
                     const parts = lines[i].split("\t");
-                    next[root.paths[i]] = {
+                    next[asked[i]] = {
                         mime: parts[0] ?? "",
-                        icon: parts[1] ?? ""
+                        icon: parts[1] ?? "",
+                        exists: parts[2] === "1"
                     };
                 }
+
                 root.probed = next;
+                root.applyProbe();
+
+                // Only on a probe that answered for every path it was asked
+                // about. Starting a second probe aborts the first, and the
+                // aborted one arrives with no lines at all -- consuming the
+                // request on that reply is why nothing was ever pruned.
+                if (root.pruning && lines.length === asked.length) {
+                    root.pruning = false;
+                    const alive = root.paths.filter(path => next[path]?.exists !== false);
+                    if (alive.length !== root.paths.length)
+                        adapter.paths = alive;
+                }
             }
         }
     }
 
-    // One process for the whole shelf: the file's mime type, and the icon file
-    // that goes with it.
+    // One process for the whole shelf: each file's mime type, and the icon
+    // file that goes with it.
     //
     // The icon is looked up by walking the theme directories by hand rather
     // than by asking `Quickshell.iconPath`, which is Tide's approach too (its
@@ -82,6 +152,12 @@ Singleton {
     // live in hicolor, while every mime and folder icon comes back empty even
     // though the files are sitting in the configured theme. Searching the
     // theme ourselves is the only way the shelf gets real file icons.
+    //
+    // Bash rather than sh, and one `file` call for the whole batch rather than
+    // an `xdg-mime` per path: a shelf of twenty files used to be twenty
+    // processes. `file` reports `inode/directory` for a directory too, so it
+    // answers both questions at once, and the icon search is memoised by mime
+    // so a shelf full of text files walks the theme exactly once.
     readonly property string probeScript: `
         theme=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'")
         roots="$HOME/.local/share/icons /usr/share/icons"
@@ -109,56 +185,108 @@ Singleton {
             return 1
         }
 
+        declare -A seen
+        mapfile -t mimes < <(file --mime-type -b -- "$@" 2>/dev/null)
+
+        i=0
         for p; do
-            if [ -d "$p" ]; then
-                mime=inode/directory
+            mime="\${mimes[i]}"
+            i=$((i + 1))
+            # A missing file makes the mime lookup print its complaint on
+            # stdout, which still has a slash in it and so still looks like a
+            # mime type.
+            [ -e "$p" ] && exists=1 || exists=0
+            case "$mime" in
+                */*) [ "$exists" = 1 ] || mime=application/octet-stream ;;
+                *) mime=application/octet-stream ;;
+            esac
+
+            if [ -n "\${seen[$mime]+set}" ]; then
+                icon="\${seen[$mime]}"
+            elif [ "$mime" = inode/directory ]; then
                 icon=$(find_icon folder inode-directory || true)
+                seen[$mime]=$icon
             else
-                mime=$(xdg-mime query filetype "$p" 2>/dev/null)
-                [ -n "$mime" ] || mime=application/octet-stream
-                dashed=$(printf '%s' "$mime" | tr '/' '-')
-                generic="$(printf '%s' "$mime" | cut -d/ -f1)-x-generic"
+                dashed=\${mime//\\//-}
+                generic="\${mime%%/*}-x-generic"
                 icon=$(find_icon "$dashed" "$generic" text-x-generic || true)
+                seen[$mime]=$icon
             fi
-            printf '%s\t%s\n' "$mime" "$icon"
+
+            printf '%s\\t%s\\t%s\\n' "$mime" "$icon" "$exists"
         done
     `
 
+    // Only what has not been seen before, unless a refresh asked for the lot:
+    // reordering the shelf changes `paths`, and re-probing every file for a
+    // move that changed nothing about any of them was pure waste.
     function probeTypes(): void {
-        if (paths.length === 0) {
-            probed = ({});
+        const wanted = pruning ? paths : paths.filter(path => !(path in probed));
+        if (wanted.length === 0) {
+            if (paths.length === 0)
+                probed = ({});
             return;
         }
+
         probe.running = false;
-        probe.command = ["sh", "-c", probeScript, "sh", ...paths];
+        probe.asked = wanted;
+        probe.command = ["bash", "-c", probeScript, "bash", ...wanted];
         probe.running = true;
     }
 
-    onPathsChanged: probeTypes()
-    Component.onCompleted: probeTypes()
-
-    function add(url: string): void {
-        const path = Paths.toLocalFile(url);
-        if (!path || adapter.paths.includes(path))
-            return;
-        adapter.paths = [...adapter.paths, path];
+    onPathsChanged: {
+        syncModel();
+        probeTypes();
     }
 
-    function addAll(urls: list<string>): void {
-        for (const url of urls)
-            add(url);
+    Component.onCompleted: {
+        syncModel();
+        probeTypes();
+    }
+
+    // `var`, not `string`/`list<string>`: a drop hands over QUrls, and letting
+    // QML coerce those through a typed parameter quietly produced nothing at
+    // all -- the drop landed, the handler ran, and no file was ever added.
+    // Converting by hand is the whole fix.
+    //
+    // Everything goes through `addAll`, and `addAll` writes the list exactly
+    // once. Adding one path at a time lost files out of a multi-file drop:
+    // the store is a watched FileView, so every write comes back round as a
+    // file change and a reload, and the next `[...adapter.paths, path]` in
+    // the loop could be built on a list that had not caught up yet. Four
+    // folders dropped together arrived as three.
+    function addAll(urls: var): void {
+        const next = [...adapter.paths];
+
+        for (const url of (urls ?? [])) {
+            // Trailing carriage returns are real: a text/uri-list payload is
+            // CRLF-separated by spec, and one that survived into a stored
+            // path made every later use of it -- opening, copying, dragging
+            // the card back out -- fail with "no such file".
+            const text = String(url ?? "").trim();
+            if (!text)
+                continue;
+
+            const path = Paths.toLocalFile(text);
+            if (!path || next.includes(path))
+                continue;
+
+            next.push(path);
+        }
+
+        if (next.length !== adapter.paths.length)
+            adapter.paths = next;
+    }
+
+    function add(url: var): void {
+        addAll([url]);
     }
 
     // Raw text/uri-list or x-special/gnome-copied-files payload: one URI per
     // line, blank lines and comments (#...) skipped, a leading "copy"/"cut"
     // action line (gnome-copied-files) skipped too.
     function addUriList(data: string): void {
-        for (const line of data.split(/\r?\n/)) {
-            const uri = line.trim();
-            if (!uri || uri.startsWith("#") || uri === "copy" || uri === "cut")
-                continue;
-            add(uri);
-        }
+        addAll(data.split(/\r?\n/).map(line => line.trim()).filter(uri => uri && !uri.startsWith("#") && uri !== "copy" && uri !== "cut"));
     }
 
     // Alongside dropping: copy a file in the file manager (which puts
@@ -174,7 +302,7 @@ Singleton {
         command: ["wl-paste", "--type", "text/uri-list"]
 
         stdout: StdioCollector {
-            onStreamFinished: root.addAll(text.split("\n").filter(l => l.length > 0))
+            onStreamFinished: root.addUriList(text)
         }
     }
 
@@ -194,9 +322,13 @@ Singleton {
         adapter.paths = adapter.paths.filter((_, i) => i !== index);
     }
 
-    // Drops whatever is no longer on disk. Tide re-runs this every time the
-    // shelf is shown; so does ours.
+    // Drops whatever is no longer on disk, which Tide re-runs every time the
+    // shelf is shown; so does ours. The probe already stats each file, so the
+    // pruning rides along with it.
+    property bool pruning: false
+
     function refresh(): void {
+        pruning = true;
         probeTypes();
     }
 

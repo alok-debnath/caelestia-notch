@@ -251,6 +251,51 @@ Item {
         }
     }
 
+    // Scroll over the row to move between pages.
+    //
+    // Here rather than over the panel, which is where it used to be: a panel
+    // that scrolls something of its own -- the shelf's tray, the notification
+    // list, the wallpaper strip -- had the wheel taken out from under it, and
+    // the tray could not be scrolled sideways at all. The row is the tab
+    // control, so the row is where the wheel changes tabs. One notch is one
+    // page, with a short cooldown so a flick does not fly through five.
+    WheelHandler {
+        id: pageWheel
+
+        property bool cooling: false
+
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        orientation: Qt.Horizontal | Qt.Vertical
+
+        onWheel: event => {
+            if (cooling)
+                return;
+
+            const px = event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0 ? event.pixelDelta : Qt.point(event.angleDelta.x / 4, event.angleDelta.y / 4);
+            const delta = Math.abs(px.x) > Math.abs(px.y) ? px.x : px.y;
+            if (Math.abs(delta) < 2)
+                return;
+
+            const next = root.current + (delta < 0 ? 1 : -1);
+            if (next < 0 || next >= root.count)
+                return;
+
+            root.selected(next);
+            cooling = true;
+            wheelCooldown.restart();
+        }
+    }
+
+    // Outside the handler: a WheelHandler has no default property, so a Timer
+    // declared inside it will not load at all.
+    Timer {
+        id: wheelCooldown
+
+        interval: 260
+        onTriggered: pageWheel.cooling = false
+    }
+
     DragHandler {
         id: drag
 
