@@ -2,10 +2,12 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Bluetooth
 import Caelestia.Config
 import qs.components
 import qs.components.controls
+import qs.modules.island.overview
 import qs.services
 import qs.utils
 
@@ -103,6 +105,61 @@ SlidingLayer {
                         Recorder.stop();
                     else
                         Recorder.start();
+                }
+            }
+        }
+
+        // The surfaces that are not everyday enough for the action row, and
+        // the two Caelestia already owns -- the launcher and the settings
+        // window -- which the island opens rather than reimplements.
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+
+            spacing: 0
+
+            IconButton {
+                icon: "shelves"
+                type: IconButton.Text
+                isToggle: true
+                checked: root.island.panel === IslandWindow.State.Shelf
+                onClicked: root.island.openPanel(IslandWindow.State.Shelf)
+            }
+
+            IconButton {
+                icon: "grid_view"
+                type: IconButton.Text
+                isToggle: true
+                checked: OverviewState.visible
+                onClicked: {
+                    root.island.close();
+                    OverviewState.toggle();
+                }
+            }
+
+            IconButton {
+                icon: "apps"
+                type: IconButton.Text
+                onClicked: {
+                    root.island.close();
+                    Quickshell.execDetached(["caelestia", "shell", "drawers", "toggle", "launcher"]);
+                }
+            }
+
+            IconButton {
+                icon: "settings"
+                type: IconButton.Text
+                onClicked: {
+                    root.island.close();
+                    Quickshell.execDetached(["caelestia", "shell", "nexus", "open"]);
+                }
+            }
+
+            IconButton {
+                icon: "power_settings_new"
+                type: IconButton.Text
+                onClicked: {
+                    root.island.close();
+                    Quickshell.execDetached(["caelestia", "shell", "drawers", "toggle", "session"]);
                 }
             }
         }

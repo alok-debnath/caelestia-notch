@@ -16,11 +16,17 @@ Changes made in this repo are described in `docs/DIVERGENCE.md`.
 https://github.com/enhaoswen/Tide-island — Copyright (c) enhaoswen, GPL-3.0.
 
 `shell/modules/island/` is a reimplementation of Tide Island's Dynamic Island
-for Caelestia. It contains no code from Tide Island: the layer set, the
-priority ordering between them and the morphing-capsule idea come from that
-project, but every line here is written against Caelestia's own services and
-components. The C++ backend Tide ships (`IslandBackend`) has no counterpart
-here and is not required.
+for Caelestia. It contains no code from Tide Island, but it follows that project
+closely by design: the state machine, the sizes each state morphs the capsule to,
+the corner radii, the hold times, the 400ms OutQuint morph, the type scale, the
+cava bar metrics, the three resting pages and the layer set are all Tide's, read
+off its source and reimplemented against Caelestia's own services and components.
+Colour, typeface and the surface itself are Caelestia's. The C++ backend Tide
+ships (`IslandBackend`) has no counterpart here and is not required.
+
+`lyricsmpris`, the lyrics helper Tide ships, is used as an optional external
+program if it is installed. It is not vendored here and no code from it is
+included.
 
 If you want the original, standalone Dynamic Island, install Tide Island
 itself — it is a complete shell in its own right and does considerably more

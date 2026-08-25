@@ -4,7 +4,6 @@ import QtQuick
 import QtQuick.Layouts
 import Caelestia.Config
 import qs.components.controls
-import qs.modules.island.overview
 
 // The island's only buttons.
 //
@@ -40,22 +39,6 @@ RowLayout {
         isToggle: true
         checked: root.island.panel === IslandWindow.State.NotifCenter
         onClicked: root.island.openPanel(IslandWindow.State.NotifCenter)
-    }
-
-    IconButton {
-        icon: "shelves"
-        type: IconButton.Text
-        isToggle: true
-        checked: root.island.panel === IslandWindow.State.Shelf
-        onClicked: root.island.openPanel(IslandWindow.State.Shelf)
-    }
-
-    IconButton {
-        icon: "grid_view"
-        type: IconButton.Text
-        isToggle: true
-        checked: OverviewState.visible
-        onClicked: OverviewState.toggle()
     }
 
     IconButton {

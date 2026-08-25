@@ -52,8 +52,9 @@ with a `PlaceholderComp` rather than removed, because later entries in that
 
 ## `shell.qml`
 
-Two lines: `import "modules/island"` and `Island {}`, mounted just before
-`ConfigToasts {}` so the island's layer surfaces stack above the drawers.
+Four lines: `import "modules/island"` / `import "modules/island/overview"`, and
+`Island {}` / `Overview {}`, mounted just before `ConfigToasts {}` so the
+island's layer surfaces stack above the drawers.
 
 ## `services/ShellState.qml`
 
@@ -96,6 +97,19 @@ panel.
 
 Set it back to `true` to hand popups back to Caelestia. You would then also want
 to stop the notch showing them, in `modules/island/IslandWindow.qml`.
+
+## `modules/nexus/`
+
+`PageCompRegistry.qml` gains `IslandPanel` at the **end** of the Panels stack,
+and `pages/PanelsPage.qml` gains a row pointing at it. Appended rather than
+slotted in beside the other panels because the taskbar sub-pages before it are
+addressed by index from elsewhere in that page.
+
+The island's settings do not live in `Config`: that object comes from
+`Caelestia.Config` in C++ and this repo has no C++, so `IslandConfig` keeps them
+in `~/.config/caelestia/island.json` and the page writes through to it. Every
+other settings page in the window edits `GlobalConfig` instead -- this is the one
+that does not.
 
 ## Configuration, not code
 

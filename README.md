@@ -12,7 +12,18 @@ Built on Fedora 44 + Hyprland + Quickshell 0.3.1.
 
 A notch that grows out of the top border as one continuous surface, carrying the
 clock at rest and morphing to show notifications, volume, microphone, brightness,
-the current track, a calendar and system resources.
+the current track, a calendar, system resources, a control centre, notification
+history and a file shelf -- plus a workspace overview in a window of its own.
+
+Its **geometry, type scale and motion are Tide Island's**: every state morphs the
+capsule to a fixed size and the content lays out inside it, rather than the
+capsule sizing itself to whatever is in it. That table -- 140x38 at rest, 220 for
+a line of text, 410x165 for the player, 420 for the control centre, 400ms of
+OutQuint between them -- is most of why the notch reads as one object changing
+shape rather than a set of popups.
+
+Its **colour is Caelestia's**: the palette comes from the wallpaper and the shape
+is drawn by the shell's own blob renderer, so nothing here is painted black.
 
 **There is no dashboard.** Caelestia's top-centre drawer is removed — its
 calendar and performance views are ported into the notch, which is where they
@@ -129,14 +140,23 @@ The island module:
 | File | Role |
 | --- | --- |
 | `Island.qml` | one window per screen, IPC |
-| `IslandWindow.qml` | layer priority, the morphing capsule |
-| `IslandTokens.qml` | measurements and morph timing |
-| `OsdWatcher.qml` | turns Audio/Brightness changes into a transient layer |
-| `NotificationQueue.qml` | feeds one notification at a time from `Notifs` |
-| `ClockLayer.qml` `OsdLayer.qml` `NotificationLayer.qml` `PlayerLayer.qml` | the transient and player layers |
+| `IslandWindow.qml` | the state machine and the morphing capsule |
+| `IslandTokens.qml` | Tide's sizes, radii, hold times and type scale |
+| `IslandConfig.qml` | the island's settings, and their file |
+| `SlidingLayer.qml` | a page and how far it is from the middle |
+| `IslandText.qml` | the notch's type, in the shell's typeface |
+| `ClockLayer.qml` `DatePreviewLayer.qml` `LyricsLayer.qml` | the three resting pages |
+| `CavaBars.qml` `LyricsProvider.qml` | the visualiser and the lyrics helper |
+| `OsdWatcher.qml` `OsdLayer.qml` `ProgressRing.qml` | levels |
+| `EventWatcher.qml` `EventLayer.qml` | everything else worth announcing |
+| `NotificationQueue.qml` `NotificationLayer.qml` `NotificationCenterLayer.qml` | notifications, and their history |
+| `PlayerLayer.qml` `MediaBlock.qml` | now playing |
+| `ControlLayer.qml` | the control centre |
+| `FileShelf.qml` `ShelfLayer.qml` | the file shelf |
 | `CalendarLayer.qml` `Calendar.qml` | the calendar, ported from the dashboard |
-| `PerformanceLayer.qml` `Performance.qml` `performance/` | system resources, ported from the dashboard |
-| `ProgressRing.qml` | the level ring |
+| `PerformanceLayer.qml` `Performance.qml` | system resources, ported from the dashboard |
+| `IslandActions.qml` | the island's only buttons |
+| `overview/` | the workspace overview, in a window of its own |
 
 ## Divergence from Caelestia
 

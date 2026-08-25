@@ -39,7 +39,7 @@ QtObject {
     readonly property real playerWidth: 410
     readonly property real playerHeight: 165
     readonly property real controlWidth: 420
-    readonly property real controlHeight: 352
+    readonly property real controlHeight: 400
     readonly property real panelWidth: 410
     readonly property real notifCenterMaxHeight: 420
     readonly property real notifCenterListHeight: 300
