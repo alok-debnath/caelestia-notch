@@ -12,16 +12,16 @@ Built on Fedora 44 + Hyprland + Quickshell 0.3.1.
 
 A notch that grows out of the top border as one continuous surface, carrying the
 clock at rest and morphing to show notifications, volume, microphone, brightness,
-the current track, a calendar, system resources, a control centre, notification
-history, a file shelf and an app search -- plus a workspace overview in a window
-of its own.
+the current track, a calendar, system resources, notification history, clipboard
+history, a file shelf, a kitchen timer, the wallpaper picker, a face scan and an
+app search -- plus the workspace overview.
 
 Its **geometry, type scale and motion are Tide Island's**: every state morphs the
 capsule to a fixed size and the content lays out inside it, rather than the
 capsule sizing itself to whatever is in it. That table -- 140x38 at rest, 220 for
-a line of text, 410x165 for the player, 420 for the control centre, 400ms of
-OutQuint between them -- is most of why the notch reads as one object changing
-shape rather than a set of popups.
+a line of text, 410x190 for the player, 760 for the overview, 400ms of OutQuint
+between them -- lives in `IslandTokens.qml`, and is most of why the notch reads
+as one object changing shape rather than a set of popups.
 
 Its **colour is Caelestia's**: the palette comes from the wallpaper and the shape
 is drawn by the shell's own blob renderer, so nothing here is painted black.
@@ -108,10 +108,14 @@ qs ipc -c caelestia call island toggleSearch        # the launcher, in the notch
 qs ipc -c caelestia call island toggleCalendar
 qs ipc -c caelestia call island togglePerformance
 qs ipc -c caelestia call island togglePlayer
-qs ipc -c caelestia call island toggleControlCenter
 qs ipc -c caelestia call island toggleNotifications
+qs ipc -c caelestia call island toggleClipboard
+qs ipc -c caelestia call island clearClipboard
 qs ipc -c caelestia call island toggleShelf
+qs ipc -c caelestia call island pasteFile
+qs ipc -c caelestia call island toggleWallpapers
 qs ipc -c caelestia call island overview
+qs ipc -c caelestia call island timer               # and timerToggle, timerReset, timerSet <minutes>
 qs ipc -c caelestia call island nextPage            # the resting pages, without swiping
 qs ipc -c caelestia call island previousPage
 qs ipc -c caelestia call island close
@@ -174,27 +178,36 @@ The island module:
 
 | File | Role |
 | --- | --- |
-| `Island.qml` | one window per screen, IPC |
+| `Island.qml` | one notch per screen, and the `island` / `faceId` IPC handlers |
 | `IslandWindow.qml` | the state machine and the morphing capsule |
 | `IslandTokens.qml` | Tide's sizes, radii, hold times and type scale |
 | `IslandConfig.qml` | the island's settings, and their file |
-| `SlidingLayer.qml` | a page and how far it is from the middle |
-| `IslandText.qml` | the notch's type, in the shell's typeface |
-| `ClockLayer.qml` `DatePreviewLayer.qml` `LyricsLayer.qml` | the three resting pages |
-| `CavaBars.qml` `LyricsProvider.qml` | the visualiser and the lyrics helper |
-| `OsdWatcher.qml` `OsdLayer.qml` `ProgressRing.qml` | levels |
-| `EventWatcher.qml` `EventLayer.qml` | everything else worth announcing |
-| `NotificationQueue.qml` `NotificationLayer.qml` `NotificationCenterLayer.qml` | notifications, and their history |
-| `PlayerLayer.qml` `MediaBlock.qml` | now playing |
-| `ControlLayer.qml` | the control centre |
-| `FileShelf.qml` `ShelfLayer.qml` | the file shelf |
-| `SearchLayer.qml` | Caelestia's launcher, hosted in the notch |
+| `IslandLayer.qml` | one non-resting layer, and the size it lays out at |
+| `SlidingLayer.qml` | a page of the notch that can slide |
+| `IslandText.qml` `IslandRollText.qml` | the notch's type, and a label that rolls rather than blinks |
 | `MarqueeText.qml` | a title too long for the capsule |
-| `IslandLayer.qml` | a layer, and the target size it lays out at |
+| **Resting** | |
+| `RestingPage.qml` `PageDots.qml` | one side of Tide's resting strip, and where you are in it |
+| `ClockLayer.qml` `ClockText.qml` | the clock, one rolling glyph per character |
+| `DatePreviewLayer.qml` `StripItem.qml` `BatteryPill.qml` | the left page: date, readings, charge |
+| `LyricsLayer.qml` `LyricsProvider.qml` `CavaBars.qml` | the right page: cover, synced line, visualiser |
+| `WallpaperLayer.qml` | Tide's wallpaper switcher, the library as one strip |
+| **Transient** | |
+| `OsdWatcher.qml` `OsdLayer.qml` `ProgressRing.qml` | volume, microphone, brightness |
+| `EventWatcher.qml` `EventLayer.qml` | everything else worth announcing, in one line |
+| `NotificationQueue.qml` `NotificationLayer.qml` | notifications, one at a time, at Tide's metrics |
+| `BluetoothWatcher.qml` `BluetoothLayer.qml` | a device connecting or disconnecting |
+| `FaceIdWatcher.qml` `FaceIdLayer.qml` `FaceIdGlyph.qml` | biopass face scans, the mark drawn rather than a font glyph |
+| **Expanded** | |
+| `PlayerLayer.qml` `MediaBlock.qml` `TransportButton.qml` | now playing, and its transport |
+| `NotificationCenterLayer.qml` | everything that came through and is still around |
+| `ClipboardLayer.qml` `Clipboard.qml` | clipboard history, backed by `cliphist` |
+| `FileShelf.qml` `ShelfLayer.qml` `ShelfBubble.qml` | the file shelf, and what is on it |
+| `LauncherLayer.qml` | Caelestia's launcher, hosted in the notch |
 | `CalendarLayer.qml` `Calendar.qml` | the calendar, ported from the dashboard |
 | `PerformanceLayer.qml` `Performance.qml` | system resources, ported from the dashboard |
-| `IslandActions.qml` | the island's only buttons |
-| `overview/` | the workspace overview, in a window of its own |
+| `IslandTimer.qml` `TimerPage.qml` `TimerDial.qml` `TimerButton.qml` `TimerBubble.qml` | Tide's kitchen timer, and its bubble |
+| `OverviewLayer.qml` `overview/` | the workspace overview, morphed out of the notch |
 
 ## Divergence from Caelestia
 
