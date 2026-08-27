@@ -10,18 +10,24 @@ import qs.components
 import qs.components.misc
 import qs.services
 
-// System resources as a list of rows.
+// System resources as a grid of cards.
 //
 // Same numbers the dashboard's cards showed -- usage, temperature, used of
-// total, transfer rates, session totals, charge and time left -- but a row each
-// instead of a card each: the notch is a strip, and a strip reads down, not
-// across. Nothing was dropped to make it fit; the circular gauges became the
-// bar at the bottom of each row, which carries the same value.
+// total, transfer rates, session totals, charge and time left -- two to a row
+// instead of one row each: a full-width row per reading ran the panel down
+// most of the notch's height for very little read per pixel. Each reading's
+// value now lives in a ring, the same `ProgressRing` canvas the timer and the
+// volume/brightness levels already draw with -- one gauge language for the
+// whole island instead of a flat bar unique to this panel.
 //
-// Which rows exist is still Config.dashboard.performance.*, provided by
+// Which cards exist is still Config.dashboard.performance.*, provided by
 // Caelestia.Config in C++ and outliving the drawer it was named after.
-ColumnLayout {
+GridLayout {
     id: root
+
+    columns: 2
+    columnSpacing: Tokens.spacing.small
+    rowSpacing: Tokens.spacing.small
 
     readonly property bool hasGpu: Config.dashboard.performance.showGpu && Gpu.type !== Gpu.None
     readonly property bool hasBattery: UPower.displayDevice.isLaptopBattery && Config.dashboard.performance.showBattery
@@ -32,9 +38,8 @@ ColumnLayout {
         return `${Math.ceil(f ? t * 1.8 + 32 : t)}°${f ? "F" : "C"}`;
     }
 
-    spacing: Tokens.spacing.small
-
     StyledText {
+        Layout.columnSpan: 2
         Layout.alignment: Qt.AlignHCenter
         Layout.topMargin: Tokens.spacing.small
         Layout.bottomMargin: Tokens.spacing.small
@@ -46,7 +51,7 @@ ColumnLayout {
     }
 
     // CPU
-    StatRow {
+    StatCard {
         visible: Config.dashboard.performance.showCpu
         icon: "memory"
         label: qsTr("CPU")
@@ -63,7 +68,7 @@ ColumnLayout {
     }
 
     // GPU
-    StatRow {
+    StatCard {
         visible: root.hasGpu
         icon: "desktop_windows"
         label: qsTr("GPU")
@@ -80,7 +85,7 @@ ColumnLayout {
     }
 
     // Memory
-    StatRow {
+    StatCard {
         visible: Config.dashboard.performance.showMemory
         icon: "memory_alt"
         label: qsTr("Memory")
@@ -99,7 +104,7 @@ ColumnLayout {
 
     // Storage. Clicking the row cycles the primary disk, which is what the
     // dashboard's disk menu did.
-    StatRow {
+    StatCard {
         readonly property var disk: Storage.primaryDisk
 
         visible: Config.dashboard.performance.showStorage
@@ -128,37 +133,8 @@ ColumnLayout {
         }
     }
 
-    // Network. The bar is replaced by the sparkline, since a rate has no
-    // percentage to fill.
-    StatRow {
-        id: network
-
-        visible: Config.dashboard.performance.showNetwork
-        icon: "swap_vert"
-        label: qsTr("Network")
-        sub: {
-            const down = NetworkUsage.formatBytesTotal(NetworkUsage.downloadTotal ?? 0);
-            const up = NetworkUsage.formatBytesTotal(NetworkUsage.uploadTotal ?? 0);
-            return (down && up) ? qsTr("↓%1%2 ↑%3%4").arg(down.value.toFixed(1)).arg(down.unit).arg(up.value.toFixed(1)).arg(up.unit) : "";
-        }
-        accent: Colours.palette.m3primary
-        detail: {
-            const fmt = NetworkUsage.formatBytes(NetworkUsage.downloadSpeed ?? 0);
-            return `↓ ${fmt ? `${fmt.value.toFixed(1)} ${fmt.unit}` : "0.0 B/s"}`;
-        }
-        extra: {
-            const fmt = NetworkUsage.formatBytes(NetworkUsage.uploadSpeed ?? 0);
-            return `↑ ${fmt ? `${fmt.value.toFixed(1)} ${fmt.unit}` : "0.0 B/s"}`;
-        }
-        barComponent: sparkline
-
-        Ref {
-            service: NetworkUsage
-        }
-    }
-
     // Battery
-    StatRow {
+    StatCard {
         readonly property bool charging: [UPowerDeviceState.Charging, UPowerDeviceState.FullyCharged, UPowerDeviceState.PendingCharge].includes(UPower.displayDevice.state)
 
         visible: root.hasBattery
@@ -184,42 +160,171 @@ ColumnLayout {
         detail: `${Math.round(UPower.displayDevice.percentage * 100)}%`
     }
 
-    Component {
-        id: sparkline
+    // Network. Full-width rather than one of the pair: two speeds and a
+    // session total don't fit the other cards' single-number shape, and the
+    // sparkline reads better wide than squeezed into a half card.
+    NetworkCard {
+        visible: Config.dashboard.performance.showNetwork
 
-        SparklineItem {
-            id: spark
+        Ref {
+            service: NetworkUsage
+        }
+    }
 
-            property real smoothMax: 1024
+    // A metric's identity: an icon, tinted to the metric's accent, sitting in
+    // a ring. `ring >= 0` sweeps the same `ProgressRing` canvas the timer and
+    // the volume/brightness levels use, so a reading with a share to show
+    // (CPU, memory, a disk, the battery) fills it; `ring < 0` -- network has
+    // a rate, not a share -- leaves it a plain tinted disc instead.
+    component IconBadge: Item {
+        id: badge
 
-            implicitHeight: Tokens.padding.large
+        property string icon
+        property color tint: Colours.palette.m3primary
+        property real ring: -1
 
-            line1: NetworkUsage.uploadBuffer // qmllint disable missing-type
-            line1Color: Colours.palette.m3secondary
-            line1FillAlpha: 0.15
-            line2: NetworkUsage.downloadBuffer // qmllint disable missing-type
-            line2Color: Colours.palette.m3primary
-            line2FillAlpha: 0.2
-            maxValue: smoothMax
-            historyLength: NetworkUsage.historyLength
+        implicitWidth: 40
+        implicitHeight: 40
 
-            Connections {
-                function onValuesChanged(): void {
-                    spark.smoothMax = Math.max(NetworkUsage.downloadBuffer.maximum, NetworkUsage.uploadBuffer.maximum, 1024);
-                }
+        StyledRect {
+            anchors.fill: parent
+            visible: badge.ring < 0
+            radius: width / 2
+            color: Qt.alpha(badge.tint, 0.16)
+        }
 
-                target: NetworkUsage.downloadBuffer
+        ProgressRing {
+            anchors.fill: parent
+            visible: badge.ring >= 0
+            value: badge.ring
+            trackColour: Qt.alpha(badge.tint, 0.16)
+            fillColour: badge.tint
+        }
+
+        MaterialIcon {
+            anchors.centerIn: parent
+            text: badge.icon
+            color: badge.tint
+            fontStyle: Tokens.font.icon.small
+            fill: 1
+        }
+    }
+
+    // Network: two speeds and a session total, plus the sparkline, given the
+    // full row width instead of squeezed into half a card -- neither speed
+    // outranks the other, so both read at the same size and weight rather
+    // than one being the "big" number.
+    component NetworkCard: StyledRect {
+        id: card
+
+        Layout.fillWidth: true
+        Layout.columnSpan: 2
+
+        implicitHeight: content.implicitHeight + Tokens.padding.medium * 2
+        color: Colours.tPalette.m3surfaceContainer
+        radius: Tokens.rounding.large
+
+        RowLayout {
+            id: content
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: Tokens.padding.medium
+            spacing: Tokens.spacing.medium
+
+            IconBadge {
+                Layout.alignment: Qt.AlignVCenter
+                icon: "swap_vert"
+                tint: Colours.palette.m3primary
             }
 
-            Behavior on smoothMax {
-                Anim {}
+            ColumnLayout {
+                id: info
+
+                spacing: Tokens.spacing.extraSmall / 2
+
+                StyledText {
+                    text: qsTr("Network")
+                    font: Tokens.font.body.small
+                    color: Colours.palette.m3onSurfaceVariant
+                }
+
+                RowLayout {
+                    spacing: Tokens.spacing.medium
+
+                    StyledText {
+                        text: {
+                            const fmt = NetworkUsage.formatBytes(NetworkUsage.downloadSpeed ?? 0);
+                            return `↓ ${fmt ? `${fmt.value.toFixed(1)} ${fmt.unit}` : "0.0 B/s"}`;
+                        }
+                        font: Tokens.font.body.builders.medium.weight(Font.Medium).build()
+                        color: Colours.palette.m3onSurface
+                    }
+
+                    StyledText {
+                        text: {
+                            const fmt = NetworkUsage.formatBytes(NetworkUsage.uploadSpeed ?? 0);
+                            return `↑ ${fmt ? `${fmt.value.toFixed(1)} ${fmt.unit}` : "0.0 B/s"}`;
+                        }
+                        font: Tokens.font.body.builders.medium.weight(Font.Medium).build()
+                        color: Colours.palette.m3onSurface
+                    }
+                }
+
+                StyledText {
+                    Layout.topMargin: Tokens.spacing.extraSmall / 2
+
+                    text: {
+                        const down = NetworkUsage.formatBytesTotal(NetworkUsage.downloadTotal ?? 0);
+                        const up = NetworkUsage.formatBytesTotal(NetworkUsage.uploadTotal ?? 0);
+                        return (down && up) ? qsTr("Session ↓%1%2 ↑%3%4").arg(down.value.toFixed(1)).arg(down.unit).arg(up.value.toFixed(1)).arg(up.unit) : "";
+                    }
+                    font: Tokens.font.body.small
+                    color: Colours.palette.m3onSurfaceVariant
+                    elide: Text.ElideRight
+                    visible: text.length > 0
+                }
+            }
+
+            SparklineItem {
+                id: spark
+
+                property real smoothMax: 1024
+
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                implicitHeight: Tokens.padding.large
+
+                line1: NetworkUsage.uploadBuffer // qmllint disable missing-type
+                line1Color: Colours.palette.m3secondary
+                line1FillAlpha: 0.15
+                line2: NetworkUsage.downloadBuffer // qmllint disable missing-type
+                line2Color: Colours.palette.m3primary
+                line2FillAlpha: 0.2
+                maxValue: smoothMax
+                historyLength: NetworkUsage.historyLength
+
+                Connections {
+                    function onValuesChanged(): void {
+                        spark.smoothMax = Math.max(NetworkUsage.downloadBuffer.maximum, NetworkUsage.uploadBuffer.maximum, 1024);
+                    }
+
+                    target: NetworkUsage.downloadBuffer
+                }
+
+                Behavior on smoothMax {
+                    Anim {}
+                }
             }
         }
     }
 
-    // One reading: what it is, what it says, and how full it is.
-    component StatRow: StyledRect {
-        id: row
+    // One reading: a ring for the share it holds, the number, and what it's
+    // of. Laid out around the ring rather than stacked above a bar, so the
+    // value the ring carries is never drawn twice.
+    component StatCard: StyledRect {
+        id: card
 
         property string icon
         property string label
@@ -229,106 +334,93 @@ ColumnLayout {
         property bool extraAlert
         property color accent
         property real value
-        property Component barComponent: null
         property bool interactive
 
         signal clicked
 
         Layout.fillWidth: true
+        Layout.preferredWidth: 0
 
-        implicitHeight: rowLayout.implicitHeight + bar.implicitHeight + Tokens.padding.small * 2 + Tokens.spacing.extraSmall
+        implicitHeight: content.implicitHeight + Tokens.padding.medium * 2
         color: Colours.tPalette.m3surfaceContainer
-        radius: Tokens.rounding.medium
+        radius: Tokens.rounding.large
 
         MouseArea {
             anchors.fill: parent
-            enabled: row.interactive
+            enabled: card.interactive
             cursorShape: Qt.PointingHandCursor
-            onClicked: row.clicked()
+            onClicked: card.clicked()
         }
 
         RowLayout {
-            id: rowLayout
+            id: content
 
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: Tokens.padding.small
-            anchors.leftMargin: Tokens.padding.medium
-            anchors.rightMargin: Tokens.padding.medium
+            anchors.margins: Tokens.padding.medium
             spacing: Tokens.spacing.small
 
-            MaterialIcon {
-                text: row.icon
-                color: row.accent
-                fontStyle: Tokens.font.icon.small
-                fill: 1
+            IconBadge {
+                Layout.alignment: Qt.AlignTop
+                icon: card.icon
+                tint: card.accent
+                ring: isNaN(card.value) ? 0 : card.value
             }
 
-            StyledText {
-                text: row.label
-                font: Tokens.font.body.builders.medium.weight(Font.Medium).build()
-                color: Colours.palette.m3onSurface
-            }
-
-            StyledText {
+            ColumnLayout {
                 Layout.fillWidth: true
+                spacing: 0
 
-                text: row.sub
-                font: Tokens.font.body.small
-                color: Colours.palette.m3onSurfaceVariant
-                elide: Text.ElideRight
-                visible: text.length > 0
-            }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Tokens.spacing.extraSmall
 
-            StyledText {
-                text: row.detail
-                font: Tokens.font.body.builders.medium.weight(Font.Medium).build()
-                color: row.accent
-                visible: text.length > 0
-            }
+                    StyledText {
+                        Layout.fillWidth: true
 
-            StyledText {
-                text: row.extra
-                font: Tokens.font.body.small
-                color: row.extraAlert ? Colours.palette.m3error : Colours.palette.m3onSurfaceVariant
-                visible: text.length > 0
-            }
-        }
-
-        Loader {
-            id: bar
-
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.margins: Tokens.padding.small
-            anchors.leftMargin: Tokens.padding.medium
-            anchors.rightMargin: Tokens.padding.medium
-
-            sourceComponent: row.barComponent ?? levelBar
-        }
-
-        Component {
-            id: levelBar
-
-            StyledRect {
-                implicitHeight: Tokens.padding.extraSmall
-                color: Colours.palette.m3surfaceContainerHighest
-                radius: Tokens.rounding.full
-
-                StyledRect {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-
-                    implicitWidth: parent.width * Math.max(0, Math.min(1, isNaN(row.value) ? 0 : row.value))
-                    color: row.accent
-                    radius: Tokens.rounding.full
-
-                    Behavior on implicitWidth {
-                        Anim {}
+                        text: card.label
+                        font: Tokens.font.body.small
+                        color: Colours.palette.m3onSurfaceVariant
+                        elide: Text.ElideRight
                     }
+
+                    StyledRect {
+                        Layout.alignment: Qt.AlignVCenter
+                        visible: card.extra.length > 0
+                        radius: Tokens.rounding.full
+                        color: card.extraAlert ? Qt.alpha(Colours.palette.m3error, 0.16) : Colours.palette.m3surfaceContainerHighest
+                        implicitWidth: extraText.implicitWidth + Tokens.padding.small * 2
+                        implicitHeight: extraText.implicitHeight + Tokens.padding.extraSmall
+
+                        StyledText {
+                            id: extraText
+
+                            anchors.centerIn: parent
+                            text: card.extra
+                            font: Tokens.font.body.small
+                            color: card.extraAlert ? Colours.palette.m3error : Colours.palette.m3onSurfaceVariant
+                        }
+                    }
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+
+                    text: card.detail
+                    font: Tokens.font.title.builders.small.weight(Font.DemiBold).build()
+                    color: Colours.palette.m3onSurface
+                    visible: text.length > 0
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+
+                    text: card.sub
+                    font: Tokens.font.body.small
+                    color: Colours.palette.m3onSurfaceVariant
+                    elide: Text.ElideRight
+                    visible: text.length > 0
                 }
             }
         }
