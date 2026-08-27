@@ -7,6 +7,7 @@ import Quickshell.Services.SystemTray
 import Caelestia.Config
 import qs.components
 import qs.services
+import qs.modules.island as Island
 
 Item {
     id: root
@@ -106,6 +107,30 @@ Item {
             name: "audio"
             sourceComponent: AudioPopout {
                 popouts: root.popouts
+            }
+        }
+
+        Popout {
+            name: "calendar"
+
+            // Calendar anchors itself to whatever holds it (it used to be a
+            // panel inside the island, sized by that panel), so it needs a
+            // fixed-width host here rather than being loaded directly --
+            // anchoring it straight to the Loader would leave both sides
+            // waiting on each other for a width.
+            sourceComponent: Item {
+                id: calendarWrapper
+
+                width: Island.IslandTokens.panelWidth
+                height: cal.implicitHeight
+                implicitWidth: width
+                implicitHeight: height
+
+                Island.Calendar {
+                    id: cal
+
+                    anchors.fill: parent
+                }
             }
         }
 

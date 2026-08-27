@@ -17,7 +17,7 @@ PageBase {
     // Every surface a click can be bound to, in the order they appear in the
     // menu. `actionIds` is the parallel list of what goes in the config file --
     // see IslandWindow.runAction.
-    readonly property list<string> actionIds: ["none", "player", "overview", "notifications", "calendar", "performance", "wallpapers", "shelf", "clipboard", "timer", "search", "close"]
+    readonly property list<string> actionIds: ["none", "player", "overview", "notifications", "performance", "wallpapers", "shelf", "clipboard", "timer", "search", "close"]
 
     readonly property list<MenuItem> actionItems: [
         MenuItem {
@@ -35,10 +35,6 @@ PageBase {
         MenuItem {
             text: qsTr("Notifications")
             icon: "inbox"
-        },
-        MenuItem {
-            text: qsTr("Calendar")
-            icon: "calendar_month"
         },
         MenuItem {
             text: qsTr("System")

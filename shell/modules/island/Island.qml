@@ -25,10 +25,6 @@ Scope {
             root.forActiveWindow(w => w.openPanel(IslandWindow.State.Player));
         }
 
-        function toggleCalendar(): void {
-            root.forActiveWindow(w => w.openPanel(IslandWindow.State.Calendar));
-        }
-
         function togglePerformance(): void {
             root.forActiveWindow(w => w.openPanel(IslandWindow.State.Performance));
         }

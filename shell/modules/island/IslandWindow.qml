@@ -33,7 +33,6 @@ StyledWindow {
         FaceId,       // transient: a biopass face scan
         Bluetooth,    // transient: a device just connected
         Player,       // panel: now playing
-        Calendar,     // panel: calendar
         Performance,  // panel: system resources
         Overview,     // panel: workspace overview
         NotifCenter,  // panel: notification history
@@ -106,8 +105,8 @@ StyledWindow {
         // has to be open and wide before the drop lands.
         if (dropping)
             return IslandWindow.State.Shelf;
-        // Search outranks the other panels: asking for the launcher while the
-        // calendar is open should give you the launcher.
+        // Search outranks the other panels: asking for the launcher while a
+        // panel is open should give you the launcher.
         if (searchOpen)
             return IslandWindow.State.Search;
         if (hasPanel)
@@ -142,9 +141,9 @@ StyledWindow {
     // disagree about which way the switch went.
     // What the tabs are called, for the row that opens on hover. Parallel to
     // `panelOrder`.
-    readonly property var panelNames: [qsTr("Calendar"), qsTr("System"), qsTr("Notifications"), qsTr("Workspaces"), qsTr("Wallpapers"), qsTr("Shelf"), qsTr("Clipboard")]
+    readonly property var panelNames: [qsTr("System"), qsTr("Notifications"), qsTr("Workspaces"), qsTr("Wallpapers")]
 
-    readonly property var panelOrder: [IslandWindow.State.Calendar, IslandWindow.State.Performance, IslandWindow.State.NotifCenter, IslandWindow.State.Overview, IslandWindow.State.Wallpaper, IslandWindow.State.Shelf, IslandWindow.State.Clipboard]
+    readonly property var panelOrder: [IslandWindow.State.Performance, IslandWindow.State.NotifCenter, IslandWindow.State.Overview, IslandWindow.State.Wallpaper]
 
     // -1, 0 or 1: which way along `panelOrder` the last state change moved.
     // Zero for anything that is not a switch between two tabs -- opening a
@@ -222,8 +221,6 @@ StyledWindow {
             return Math.max(IslandTokens.longWidth, Math.min(root.width - IslandTokens.swipeSideMargin, bluetoothLoader.item?.preferredWidth ?? 0));
         case IslandWindow.State.Player:
             return IslandTokens.playerWidth;
-        case IslandWindow.State.Calendar:
-            return IslandTokens.panelWidth;
         case IslandWindow.State.Performance:
             // Wider than the other panels: every row here is a label, a
             // reading and a figure, and at panel width they start eliding.
@@ -256,8 +253,6 @@ StyledWindow {
             return Math.max(IslandTokens.notifMinHeight, notifLoader.item?.implicitHeight ?? 0);
         case IslandWindow.State.Player:
             return IslandTokens.playerHeight;
-        case IslandWindow.State.Calendar:
-            return calendarLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
         case IslandWindow.State.Performance:
             return performanceLoader.item?.implicitHeight ?? IslandTokens.restingHeight;
         case IslandWindow.State.Overview:
@@ -285,7 +280,6 @@ StyledWindow {
             return notifications.expanded ? IslandTokens.notifRadius : targetHeight / 2;
         case IslandWindow.State.Player:
             return IslandTokens.playerRadius;
-        case IslandWindow.State.Calendar:
         case IslandWindow.State.Performance:
         case IslandWindow.State.Overview:
         case IslandWindow.State.NotifCenter:
@@ -360,9 +354,6 @@ StyledWindow {
             return;
         case "notifications":
             openPanel(IslandWindow.State.NotifCenter);
-            return;
-        case "calendar":
-            openPanel(IslandWindow.State.Calendar);
             return;
         case "performance":
             openPanel(IslandWindow.State.Performance);
@@ -845,17 +836,6 @@ StyledWindow {
                 island: root
                 Component.onCompleted: settlePage(root.playerPage)
                 onCurrentPageChanged: root.playerPage = currentPage
-            }
-        }
-
-        IslandLayer {
-            id: calendarLoader
-
-            island: root
-            forState: IslandWindow.State.Calendar
-
-            sourceComponent: CalendarLayer {
-                island: root
             }
         }
 

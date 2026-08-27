@@ -105,7 +105,6 @@ buttons inside the expanded view open the rest, and every view has an IPC call:
 
 ```sh
 qs ipc -c caelestia call island toggleSearch        # the launcher, in the notch
-qs ipc -c caelestia call island toggleCalendar
 qs ipc -c caelestia call island togglePerformance
 qs ipc -c caelestia call island togglePlayer
 qs ipc -c caelestia call island toggleNotifications
